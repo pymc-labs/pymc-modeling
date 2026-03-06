@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Environments
+.pixi/
+.venv/
+*.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Benchmark artifacts
+benchmark/results/
+benchmark/data/synthetic/
+*.nc
+
+# Plans (dev only)
+plans/
