@@ -18,12 +18,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/check-pymc-write.sh",
-            "timeout": 10
-          },
-          {
-            "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/append-diagnostics.sh",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/pymc-post-write.sh",
             "timeout": 10
           }
         ]

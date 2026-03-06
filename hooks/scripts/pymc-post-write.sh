@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# PostToolUse hook on Write|Edit that checks for common PyMC mistakes in .py files.
+# PostToolUse hook on Write|Edit that checks for common PyMC mistakes in .py files
+# and reminds about diagnostics after pm.sample().
 # Reads tool_use input from stdin JSON.
 
 set -euo pipefail
@@ -51,6 +52,11 @@ fi
 # Check for deprecated ArviZ 0.x idata.posterior access pattern
 if echo "$content" | grep -qE 'idata\.(posterior|prior|posterior_predictive|prior_predictive|observed_data|sample_stats|log_likelihood)\b'; then
   warnings+=("Detected idata.posterior-style access pattern. For ArviZ 1.0+, use dt[\"posterior\"] (bracket notation on DataTree) instead of attribute access on InferenceData.")
+fi
+
+# Remind about diagnostics after pm.sample()
+if echo "$content" | grep -qE 'pm\.sample\('; then
+  warnings+=("Remember to add convergence diagnostics after pm.sample(): check divergences, r_hat, ESS, and run posterior predictive checks. Save results immediately with .to_netcdf().")
 fi
 
 if [ ${#warnings[@]} -gt 0 ]; then

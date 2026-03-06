@@ -294,6 +294,41 @@
     "explanation": "az.compare with method='stacking' (default) provides optimal model weights for prediction. These weights often outperform single-model selection."
   },
   {
+    "id": "init_failure",
+    "keywords": ["initialization", "initial", "evaluation failed", "-inf", "starting point", "outside support", "init"],
+    "title": "Initialization failure / -inf log-probability",
+    "code": "# Debug initialization\nmodel.point_logps()  # find which variable is -inf\nmodel.debug()\n\n# Fix 1: Use adapt_diag (no jitter)\nidata = pm.sample(init='adapt_diag')\n\n# Fix 2: Provide valid initial values\nidata = pm.sample(initvals={'sigma': 1.0})\n\n# Fix 3: Check data is within distribution support\nprint(f'y range: [{y_obs.min()}, {y_obs.max()}]')",
+    "explanation": "Log-probability is -inf or NaN at initial values. Common causes: data outside distribution support (e.g., negative values with TruncatedNormal lower=0), initialization jitter pushing parameters outside support, or constant response variables. Use model.point_logps() to identify which variable has -inf."
+  },
+  {
+    "id": "mass_matrix",
+    "keywords": ["mass matrix", "zero diagonal", "unscaled", "standardize", "gradient", "numerical"],
+    "title": "Mass matrix issues / unscaled predictors",
+    "code": "# Standardize predictors\nfrom sklearn.preprocessing import StandardScaler\nscaler = StandardScaler()\nX_scaled = scaler.fit_transform(X)\n\n# Use weakly informative priors instead of flat/uniform\n# BAD: sigma = pm.Uniform('sigma', 0, 100)\n# GOOD:\nsigma = pm.HalfNormal('sigma', sigma=1)\n\n# Check for empty groups\nfor group in group_labels:\n    n_obs = (df['group'] == group).sum()\n    if n_obs == 0:\n        print(f'WARNING: Group {group} has no observations!')",
+    "explanation": "Mass matrix has zero diagonal elements when gradients are numerically zero. Root causes: predictors on vastly different scales (standardize them), flat/uniform priors providing no curvature, or groups with zero observations making parameters unconstrained."
+  },
+  {
+    "id": "compilation_error",
+    "keywords": ["compile", "compilation", "pytensor error", "graph", "type mismatch", "rewrite", "pytensor"],
+    "title": "PyTensor compilation / graph errors",
+    "code": "# Type mismatch: ensure consistent dtypes\nimport pytensor.tensor as pt\nx = pt.as_tensor_variable(x_data.astype('float64'))\n\n# Avoid Python conditionals in model graph\n# BAD: if x > 0: result = a\n# GOOD:\nresult = pt.switch(x > 0, a, b)\n\n# Avoid recompilation by using pm.Data\nwith pm.Model() as model:\n    x = pm.Data('x', x_initial)\n    # ... model specification ...\n\nfor dataset in datasets:\n    pm.set_data({'x': dataset['x']})\n    idata = pm.sample()",
+    "explanation": "PyTensor graph compilation errors arise from type mismatches (mixing float32/float64), using Python control flow (if/else) instead of symbolic operations (pt.switch), or incompatible tensor shapes. For recompilation issues, use pm.Data containers to avoid rebuilding the graph."
+  },
+  {
+    "id": "prior_data_conflict",
+    "keywords": ["prior conflict", "boundary", "tight prior", "narrow", "prior scale", "prior-data"],
+    "title": "Prior-data conflict",
+    "code": "# Diagnose: compare prior and posterior\naz.plot_dist_comparison(idata, var_names=['sigma'])\n\n# Check if posterior is piled against prior boundary\n# If prior is too narrow, widen it:\n# BAD: sigma = pm.HalfNormal('sigma', sigma=0.1)  # if true sigma ~ 5\n# GOOD:\nsigma = pm.HalfNormal('sigma', sigma=5)\n\n# Always validate with prior predictive checks\nwith model:\n    prior_pred = pm.sample_prior_predictive(draws=500)\naz.plot_ppc(prior_pred, group='prior')",
+    "explanation": "Prior-data conflict occurs when the prior concentrates mass away from data-supported values. Symptoms: posterior piled against prior boundary, very low ESS, divergences near prior boundaries. Fix by widening the prior, checking the prior scale matches the data scale, and using prior predictive checks."
+  },
+  {
+    "id": "identifiability",
+    "keywords": ["identifiable", "collinear", "multicollinearity", "correlated parameters", "ridge", "non-identifiable", "overparameterized"],
+    "title": "Non-identifiable parameters",
+    "code": "# Detect multicollinearity\nimport numpy as np\ncondition_number = np.linalg.cond(X)\nprint(f'Condition number: {condition_number:.1f}')  # > 30 is problematic\n\n# Check posterior correlations\naz.plot_pair(idata, var_names=['alpha', 'beta'], divergences=True)\n\n# Fix 1: QR parameterization\nQ, R = np.linalg.qr(X)\nR_inv = np.linalg.inv(R)\nwith pm.Model() as model:\n    theta = pm.Normal('theta', 0, 1, dims='features')\n    beta = pm.Deterministic('beta', pt.dot(R_inv, theta))\n    mu = pt.dot(Q, theta)\n\n# Fix 2: Regularizing priors\nbeta = pm.Normal('beta', mu=0, sigma=0.5, dims='features')",
+    "explanation": "Non-identifiable parameters show strong correlations, wide posteriors despite large N, and R-hat > 1.01. Causes: overparameterization, multicollinearity (condition number > 30), redundant random effects. Fixes: QR decomposition, regularizing/ridge priors, sum-to-zero constraints, or dropping redundant predictors."
+  },
+  {
     "id": "hierarchical_correlation",
     "keywords": ["correlated", "random effects", "LKJ", "multivariate hierarchy"],
     "title": "Correlated random effects in hierarchical model",

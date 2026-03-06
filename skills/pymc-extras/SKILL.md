@@ -148,6 +148,8 @@ with pm.Model() as r2d2_model:
 | Tuning | Prior on R2 + concentration | Global/local shrinkage scales |
 | Implementation | `pmx.R2D2M2CP()` | Manual or pmx helper |
 
+For general prior specification guidance and elicitation workflows, see the [prior-elicitation skill](../prior-elicitation/SKILL.md).
+
 ## Regularized Horseshoe Prior
 
 For sparse regression where most coefficients are expected to be near zero:

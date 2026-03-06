@@ -184,7 +184,7 @@ prior_predictive = prior_pred["prior_predictive"].dataset
 4. **Elicit tail behavior**: "Is there any chance of extreme values? How extreme?"
 5. **Fit distribution**: Use `preliz.quartile()` or `pm.find_constrained_prior()`
 6. **Validate**: Show the fitted distribution back to the expert for confirmation
-7. **Prior predictive check**: Generate predictions and ask "do these look realistic?"
+7. **Prior predictive check**: Generate predictions and ask "do these look realistic?" For prior predictive checking workflows in PyMC, see the [pymc-modeling skill](../pymc-modeling/SKILL.md).
 
 ### Translating Domain Knowledge
 

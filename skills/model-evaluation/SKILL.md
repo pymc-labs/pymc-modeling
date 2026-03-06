@@ -12,6 +12,8 @@ description: >
 
 CRITICAL: ArviZ 1.0 replaces InferenceData with xarray.DataTree. WAIC is removed entirely — use PSIS-LOO-CV exclusively. Default credible interval is 0.89 ETI (not 0.94 HDI).
 
+For model building context, prior selection, and convergence diagnostics, see the [pymc-modeling skill](../pymc-modeling/SKILL.md).
+
 ## LOO-CV with ArviZ 1.0
 
 Leave-one-out cross-validation via Pareto-smoothed importance sampling (PSIS).

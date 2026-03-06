@@ -273,7 +273,7 @@ az.plot_compare(comparison)
 
 **Decision rule**: If two models have similar stacking weights, they are effectively equivalent.
 
-See [references/arviz.md](references/arviz.md) for detailed model comparison workflow.
+See [references/arviz.md](references/arviz.md) for detailed model comparison workflow. For detailed LOO-CV workflows, model stacking, and calibration diagnostics, see the [model-evaluation skill](../model-evaluation/SKILL.md).
 
 ### Iterative Model Building
 
@@ -316,6 +316,8 @@ See [references/priors.md](references/priors.md) for:
 - Weakly informative defaults by distribution type
 - Prior predictive checking workflow
 - Domain-specific recommendations
+
+For constrained priors, expert elicitation workflows, and PreliZ integration, see the [prior-elicitation skill](../prior-elicitation/SKILL.md).
 
 ## Common Patterns
 
@@ -501,6 +503,8 @@ Key extensions via `import pymc_extras as pmx`:
 - `pmx.marginalize(model, ["discrete_var"])` — marginalize discrete parameters for NUTS
 - `pmx.R2D2M2CP(...)` — R2D2 prior for regression (see [references/priors.md](references/priors.md))
 - `pmx.fit_laplace(model)` — Laplace approximation for fast inference
+
+For detailed coverage of splines, distributional regression, and R2D2M2CP, see the [pymc-extras skill](../pymc-extras/SKILL.md).
 
 ## Custom Distributions and Model Components
 
