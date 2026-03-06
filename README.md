@@ -4,15 +4,23 @@ A Claude Code plugin for PyMC Bayesian modeling. Provides skills, agents, hooks,
 
 ## Installation
 
+This plugin is distributed through the `python-analytics-skills` marketplace.
+
 ```bash
-git clone https://github.com/pymc-labs/pymc-modeling.git
-cd pymc-modeling
-bash install.sh
+# Add the marketplace (one-time setup)
+claude plugin marketplace add pymc-labs/python-analytics-skills
+
+# Install the plugin
+claude plugin install pymc-modeling@python-analytics-skills
 ```
 
-The install script detects your OS (Linux/macOS), creates symlinks in `~/.claude/plugins/pymc-modeling/`, and makes hook scripts executable.
+To update to the latest version:
 
-To verify the installation:
+```bash
+claude plugin update pymc-modeling
+```
+
+To verify the plugin structure during development:
 
 ```bash
 bash scripts/validate-plugin.sh
