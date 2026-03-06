@@ -11,10 +11,10 @@ check() {
   shift
   if "$@" >/dev/null 2>&1; then
     echo "  PASS: ${desc}"
-    ((PASS++))
+    PASS=$((PASS + 1))
   else
     echo "  FAIL: ${desc}"
-    ((FAIL++))
+    FAIL=$((FAIL + 1))
   fi
 }
 
@@ -32,7 +32,7 @@ echo ""
 echo "Key files:"
 check "plugin.json" test -f "${PLUGIN_DIR}/.claude-plugin/plugin.json"
 check "hooks.json" test -f "${PLUGIN_DIR}/hooks/hooks.json"
-check "mcp-server/server.py" test -f "${PLUGIN_DIR}/mcp-server/server.py"
+check "mcp-server/src/pymc_docs_server/server.py" test -f "${PLUGIN_DIR}/mcp-server/src/pymc_docs_server/server.py"
 check "install.sh" test -f "${PLUGIN_DIR}/install.sh"
 check "README.md" test -f "${PLUGIN_DIR}/README.md"
 check "LICENSE" test -f "${PLUGIN_DIR}/LICENSE"
