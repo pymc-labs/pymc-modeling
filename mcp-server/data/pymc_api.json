@@ -1,0 +1,341 @@
+[
+  {
+    "name": "pm.sample",
+    "signature": "pm.sample(draws=1000, tune=1000, chains=4, nuts_sampler='pymc', random_seed=None, ...)",
+    "description": "Draw samples from the posterior using MCMC",
+    "gotchas": [
+      "nutpie doesn't store log_likelihood automatically — call pm.compute_log_likelihood after",
+      "Use nuts_sampler='nutpie' for 2-5x speedup",
+      "Always set random_seed for reproducibility",
+      "Set target_accept=0.95+ for difficult geometries (funnels, horseshoe)"
+    ],
+    "see_also": ["pm.sample_prior_predictive", "pm.sample_posterior_predictive"]
+  },
+  {
+    "name": "pm.sample_prior_predictive",
+    "signature": "pm.sample_prior_predictive(samples=500, random_seed=None, ...)",
+    "description": "Sample from the prior predictive distribution to check priors",
+    "gotchas": [
+      "Always check prior predictive before sampling — catches unreasonable priors early",
+      "Returns InferenceData with prior and prior_predictive groups"
+    ],
+    "see_also": ["pm.sample", "pm.sample_posterior_predictive"]
+  },
+  {
+    "name": "pm.sample_posterior_predictive",
+    "signature": "pm.sample_posterior_predictive(trace, random_seed=None, extend_inferencedata=True, ...)",
+    "description": "Generate posterior predictive samples for model checking",
+    "gotchas": [
+      "Use extend_inferencedata=True to add posterior_predictive group to existing idata",
+      "Requires observed data to be in the model"
+    ],
+    "see_also": ["pm.sample", "pm.sample_prior_predictive"]
+  },
+  {
+    "name": "pm.compute_log_likelihood",
+    "signature": "pm.compute_log_likelihood(idata, ...)",
+    "description": "Compute log likelihood for model comparison (LOO-CV, WAIC)",
+    "gotchas": [
+      "Required before calling az.loo or az.compare",
+      "nutpie sampler doesn't compute this automatically — must call explicitly",
+      "Can be memory-intensive for large datasets"
+    ],
+    "see_also": ["az.loo", "az.compare"]
+  },
+  {
+    "name": "pm.find_constrained_prior",
+    "signature": "pm.find_constrained_prior(distribution, lower, upper, init_guess, mass=0.95, ...)",
+    "description": "Find distribution parameters so that mass% of prior is between lower and upper",
+    "gotchas": [
+      "Useful for eliciting informative priors from domain knowledge",
+      "Works with most continuous distributions"
+    ],
+    "see_also": ["pm.Normal", "pm.HalfNormal"]
+  },
+  {
+    "name": "pm.Model",
+    "signature": "pm.Model(coords=None, ...)",
+    "description": "Context manager for defining a Bayesian model",
+    "gotchas": [
+      "Always use coords and dims for labeled dimensions",
+      "Define coords dict before the model context",
+      "Use pm.Data for mutable data that can be updated for predictions"
+    ],
+    "see_also": ["pm.Data", "pm.Deterministic"]
+  },
+  {
+    "name": "pm.Data",
+    "signature": "pm.Data(name, value, dims=None, ...)",
+    "description": "Create a shared variable that can be updated for out-of-sample predictions",
+    "gotchas": [
+      "Use pm.set_data() to update values after sampling",
+      "Always specify dims for proper labeling",
+      "Useful for counterfactual predictions and cross-validation"
+    ],
+    "see_also": ["pm.Model", "pm.set_data"]
+  },
+  {
+    "name": "pm.Deterministic",
+    "signature": "pm.Deterministic(name, var, dims=None, ...)",
+    "description": "Create a deterministic variable tracked in the trace",
+    "gotchas": [
+      "Use for derived quantities you want to analyze (e.g., transformed parameters)",
+      "Does not add to the model's log probability",
+      "Must specify dims if the variable has named dimensions"
+    ],
+    "see_also": ["pm.Model", "pm.Potential"]
+  },
+  {
+    "name": "pm.Potential",
+    "signature": "pm.Potential(name, var, ...)",
+    "description": "Add an arbitrary factor to the model log probability",
+    "gotchas": [
+      "Use for constraints, soft bounds, or custom likelihoods",
+      "Value is added directly to log_p — must be a log probability",
+      "Does not create a random variable in the trace"
+    ],
+    "see_also": ["pm.Deterministic", "pm.Model"]
+  },
+  {
+    "name": "pm.do",
+    "signature": "pm.do(model, interventions, ...)",
+    "description": "Perform a causal do-intervention (set variables to fixed values)",
+    "gotchas": [
+      "Part of PyMC's causal inference API",
+      "interventions is a dict mapping variable names to values",
+      "Returns a new model with the intervention applied"
+    ],
+    "see_also": ["pm.observe", "pm.Model"]
+  },
+  {
+    "name": "pm.observe",
+    "signature": "pm.observe(model, observations, ...)",
+    "description": "Condition the model on observed data (for causal inference)",
+    "gotchas": [
+      "Used with pm.do for causal queries",
+      "observations is a dict mapping variable names to observed values"
+    ],
+    "see_also": ["pm.do", "pm.Model"]
+  },
+  {
+    "name": "pm.model_to_graphviz",
+    "signature": "pm.model_to_graphviz(model=None, ...)",
+    "description": "Create a graphviz visualization of the model structure",
+    "gotchas": [
+      "Requires graphviz system package installed",
+      "Useful for model documentation and debugging"
+    ],
+    "see_also": ["pm.Model"]
+  },
+  {
+    "name": "pm.Normal",
+    "signature": "pm.Normal(name, mu=0, sigma=1, dims=None, ...)",
+    "description": "Normal (Gaussian) distribution",
+    "gotchas": [
+      "sigma is standard deviation, not variance",
+      "Use for continuous unbounded parameters"
+    ],
+    "see_also": ["pm.HalfNormal", "pm.StudentT"]
+  },
+  {
+    "name": "pm.HalfNormal",
+    "signature": "pm.HalfNormal(name, sigma=1, dims=None, ...)",
+    "description": "Half-normal distribution (positive values only)",
+    "gotchas": [
+      "Good default prior for scale parameters",
+      "sigma controls the spread; the mode is always at 0"
+    ],
+    "see_also": ["pm.Normal", "pm.HalfCauchy", "pm.Exponential"]
+  },
+  {
+    "name": "pm.StudentT",
+    "signature": "pm.StudentT(name, nu, mu=0, sigma=1, dims=None, ...)",
+    "description": "Student's t-distribution — heavier tails than Normal",
+    "gotchas": [
+      "nu (degrees of freedom) controls tail heaviness; nu=1 is Cauchy, nu>30 is ~Normal",
+      "Use for robust regression or heavy-tailed likelihoods (financial data)"
+    ],
+    "see_also": ["pm.Normal", "pm.Cauchy"]
+  },
+  {
+    "name": "pm.Bernoulli",
+    "signature": "pm.Bernoulli(name, p=None, logit_p=None, dims=None, ...)",
+    "description": "Bernoulli distribution for binary outcomes",
+    "gotchas": [
+      "Use logit_p for numerical stability in logistic regression",
+      "Exactly one of p or logit_p must be specified"
+    ],
+    "see_also": ["pm.Binomial", "pm.Categorical"]
+  },
+  {
+    "name": "pm.Poisson",
+    "signature": "pm.Poisson(name, mu, dims=None, ...)",
+    "description": "Poisson distribution for count data",
+    "gotchas": [
+      "mu must be positive — use pm.math.exp(linear_predictor)",
+      "Assumes mean equals variance; use NegativeBinomial for overdispersion"
+    ],
+    "see_also": ["pm.NegativeBinomial", "pm.ZeroInflatedPoisson"]
+  },
+  {
+    "name": "pm.NormalMixture",
+    "signature": "pm.NormalMixture(name, w, mu, sigma=None, tau=None, dims=None, ...)",
+    "description": "Mixture of Normal distributions",
+    "gotchas": [
+      "w = mixture weights (must sum to 1, use Dirichlet prior)",
+      "Use ordered transform on mu to prevent label switching",
+      "sigma can be scalar (shared) or vector (per-component)"
+    ],
+    "see_also": ["pm.Mixture", "pm.Dirichlet"]
+  },
+  {
+    "name": "pm.Censored",
+    "signature": "pm.Censored(name, dist, lower=None, upper=None, dims=None, ...)",
+    "description": "Censored distribution wrapper for survival/censored data",
+    "gotchas": [
+      "dist should be an unnamed distribution: pm.Normal.dist(mu, sigma)",
+      "Use lower for left-censoring, upper for right-censoring, both for interval",
+      "The .dist() method creates a distribution without adding it to the model"
+    ],
+    "see_also": ["pm.Truncated", "pm.Potential"]
+  },
+  {
+    "name": "pm.OrderedLogistic",
+    "signature": "pm.OrderedLogistic(name, eta, cutpoints, dims=None, ...)",
+    "description": "Ordered logistic regression likelihood for ordinal outcomes",
+    "gotchas": [
+      "cutpoints must be ordered — use transform=pm.distributions.transforms.ordered",
+      "eta is the linear predictor (scalar per observation)",
+      "Number of cutpoints = number of categories - 1",
+      "Don't name cutpoints variable 'cutpoints' if using 'cutpoints' as dim name"
+    ],
+    "see_also": ["pm.Categorical", "pm.OrderedProbit"]
+  },
+  {
+    "name": "pm.ZeroInflatedPoisson",
+    "signature": "pm.ZeroInflatedPoisson(name, psi, mu, dims=None, ...)",
+    "description": "Zero-inflated Poisson for count data with excess zeros",
+    "gotchas": [
+      "psi is the probability of the Poisson component (not the zero component)",
+      "Use when data has more zeros than a Poisson model predicts"
+    ],
+    "see_also": ["pm.Poisson", "pm.ZeroInflatedNegativeBinomial"]
+  },
+  {
+    "name": "pm.Dirichlet",
+    "signature": "pm.Dirichlet(name, a, dims=None, ...)",
+    "description": "Dirichlet distribution over simplices (probabilities that sum to 1)",
+    "gotchas": [
+      "a = concentration parameters; all 1s gives uniform over simplex",
+      "Use as prior for mixture weights or categorical probabilities",
+      "Output sums to 1 by construction"
+    ],
+    "see_also": ["pm.NormalMixture", "pm.Categorical"]
+  },
+  {
+    "name": "pm.Beta",
+    "signature": "pm.Beta(name, alpha=1, beta=1, dims=None, ...)",
+    "description": "Beta distribution on [0, 1]",
+    "gotchas": [
+      "alpha=beta=1 is Uniform(0,1)",
+      "Use for probability parameters or proportions"
+    ],
+    "see_also": ["pm.Uniform", "pm.Bernoulli"]
+  },
+  {
+    "name": "pm.Exponential",
+    "signature": "pm.Exponential(name, lam, dims=None, ...)",
+    "description": "Exponential distribution (positive values, memoryless)",
+    "gotchas": [
+      "lam is the rate (1/mean), not the scale",
+      "Good prior for scale parameters when you expect them to be small"
+    ],
+    "see_also": ["pm.HalfNormal", "pm.HalfCauchy"]
+  },
+  {
+    "name": "pm.InverseGamma",
+    "signature": "pm.InverseGamma(name, alpha, beta, dims=None, ...)",
+    "description": "Inverse gamma distribution (positive values)",
+    "gotchas": [
+      "Conjugate prior for Normal variance (not standard deviation)",
+      "Can have very heavy tails — consider HalfNormal or HalfCauchy instead"
+    ],
+    "see_also": ["pm.Gamma", "pm.HalfNormal"]
+  },
+  {
+    "name": "pm.HalfCauchy",
+    "signature": "pm.HalfCauchy(name, beta, dims=None, ...)",
+    "description": "Half-Cauchy distribution (positive values, heavy-tailed)",
+    "gotchas": [
+      "Very heavy tails — good weakly informative prior for scale parameters",
+      "beta is the scale parameter (mode is at 0)"
+    ],
+    "see_also": ["pm.HalfNormal", "pm.Exponential"]
+  },
+  {
+    "name": "pm.Uniform",
+    "signature": "pm.Uniform(name, lower=0, upper=1, dims=None, ...)",
+    "description": "Uniform distribution",
+    "gotchas": [
+      "Rarely a good prior choice — can cause sampling problems at boundaries",
+      "Use informative priors (Normal, HalfNormal) instead when possible"
+    ],
+    "see_also": ["pm.Normal", "pm.Beta"]
+  },
+  {
+    "name": "pm.gp.HSGP",
+    "signature": "pm.gp.HSGP(m, c=None, cov_func=None, ...)",
+    "description": "Hilbert Space Gaussian Process approximation — fast GP for large datasets",
+    "gotchas": [
+      "m = number of basis functions (start with 20-30, increase if fit is poor)",
+      "c = proportion of data range for boundary extension (default varies)",
+      "Much faster than full GP — O(nm) vs O(n^3)",
+      "Use prior_linearized() for the most efficient parameterization"
+    ],
+    "see_also": ["pm.gp.HSGPPeriodic", "pm.gp.Marginal"]
+  },
+  {
+    "name": "pm.gp.HSGPPeriodic",
+    "signature": "pm.gp.HSGPPeriodic(m, cov_func, ...)",
+    "description": "HSGP approximation for periodic Gaussian processes",
+    "gotchas": [
+      "m = number of basis functions for the periodic component",
+      "cov_func must be a periodic covariance function",
+      "Good for seasonal patterns in time series"
+    ],
+    "see_also": ["pm.gp.HSGP", "pm.gp.Marginal"]
+  },
+  {
+    "name": "pm.gp.Marginal",
+    "signature": "pm.gp.Marginal(cov_func=None, mean_func=None, ...)",
+    "description": "Marginal Gaussian process (integrates out the GP values analytically)",
+    "gotchas": [
+      "Exact GP — O(n^3) cost, use HSGP for n > 500",
+      "Use .marginal_likelihood() for the observed data likelihood",
+      "Use .conditional() for predictions at new points"
+    ],
+    "see_also": ["pm.gp.HSGP", "pm.gp.Latent"]
+  },
+  {
+    "name": "pm.AR",
+    "signature": "pm.AR(name, rho, sigma=None, init_dist=None, steps=None, dims=None, ...)",
+    "description": "Autoregressive process of order p",
+    "gotchas": [
+      "rho can be scalar (AR(1)) or vector (AR(p))",
+      "init_dist specifies the distribution for initial values",
+      "Use for time series with autoregressive structure"
+    ],
+    "see_also": ["pm.GaussianRandomWalk"]
+  },
+  {
+    "name": "pm.GaussianRandomWalk",
+    "signature": "pm.GaussianRandomWalk(name, sigma=None, init_dist=None, steps=None, dims=None, ...)",
+    "description": "Gaussian random walk process",
+    "gotchas": [
+      "sigma controls the step-to-step variance (innovation)",
+      "Use for latent processes that evolve smoothly (stochastic volatility, trends)",
+      "init_dist sets the distribution for the first value"
+    ],
+    "see_also": ["pm.AR", "pm.BART"]
+  }
+]

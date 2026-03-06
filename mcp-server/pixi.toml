@@ -1,0 +1,10 @@
+[workspace]
+name = "pymc-docs-server"
+channels = ["conda-forge", "pypi"]
+platforms = ["linux-64", "osx-arm64"]
+
+[dependencies]
+python = ">=3.11,<3.14"
+
+[pypi-dependencies]
+mcp = ">=1.0"

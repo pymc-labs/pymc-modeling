@@ -1,0 +1,206 @@
+[
+  {
+    "name": "az.summary",
+    "signature": "az.summary(data, var_names=None, filter_vars=None, hdi_prob=0.94, ...)",
+    "description": "Create a summary table with mean, sd, HDI, ESS, and r_hat",
+    "gotchas": [
+      "ArviZ 1.0: accepts DataTree directly — no need to extract posterior",
+      "filter_vars='like' allows partial name matching",
+      "hdi_prob=0.94 is the default (94% HDI)"
+    ],
+    "see_also": ["az.plot_trace", "az.plot_posterior"]
+  },
+  {
+    "name": "az.loo",
+    "signature": "az.loo(data, var_name=None, ...)",
+    "description": "Compute LOO-CV (Leave-One-Out Cross-Validation) using PSIS",
+    "gotchas": [
+      "Requires log_likelihood group in InferenceData",
+      "Call pm.compute_log_likelihood first if using nutpie",
+      "Check k-hat values — k > 0.7 indicates unreliable estimates"
+    ],
+    "see_also": ["az.compare", "az.plot_khat", "az.loo_expectations"]
+  },
+  {
+    "name": "az.compare",
+    "signature": "az.compare(compare_dict, ic='loo', ...)",
+    "description": "Compare models using information criteria (LOO or WAIC)",
+    "gotchas": [
+      "compare_dict maps model names to InferenceData objects",
+      "Returns DataFrame sorted by IC (best model first)",
+      "Check dse column — large values indicate unreliable comparison"
+    ],
+    "see_also": ["az.loo", "az.plot_compare"]
+  },
+  {
+    "name": "az.plot_trace",
+    "signature": "az.plot_trace(data, var_names=None, filter_vars=None, ...)",
+    "description": "Plot parameter traces and marginal posteriors",
+    "gotchas": [
+      "Essential first diagnostic — check for chain mixing and stationarity",
+      "Use var_names to focus on key parameters",
+      "kind='rank_bars' or 'rank_vlines' for rank-based diagnostics"
+    ],
+    "see_also": ["az.plot_posterior", "az.plot_rank"]
+  },
+  {
+    "name": "az.plot_ppc",
+    "signature": "az.plot_ppc(data, kind='kde', ...)",
+    "description": "Plot posterior (or prior) predictive checks",
+    "gotchas": [
+      "Requires posterior_predictive group in InferenceData",
+      "kind='kde' for continuous, kind='cumulative' for discrete",
+      "Use observed_rug=True to show individual observations"
+    ],
+    "see_also": ["pm.sample_posterior_predictive", "az.plot_trace"]
+  },
+  {
+    "name": "az.plot_posterior",
+    "signature": "az.plot_posterior(data, var_names=None, ...)",
+    "description": "Plot posterior distributions with HDI and point estimates",
+    "gotchas": [
+      "Shows the marginal posterior for each parameter",
+      "ref_val parameter adds a reference line (e.g., null hypothesis)"
+    ],
+    "see_also": ["az.plot_trace", "az.summary"]
+  },
+  {
+    "name": "az.plot_forest",
+    "signature": "az.plot_forest(data, var_names=None, combined=True, ...)",
+    "description": "Forest plot comparing parameter estimates across groups",
+    "gotchas": [
+      "combined=True pools chains; False shows each chain separately",
+      "Useful for hierarchical model parameters",
+      "model_names parameter for comparing multiple models"
+    ],
+    "see_also": ["az.plot_posterior", "az.summary"]
+  },
+  {
+    "name": "az.plot_pair",
+    "signature": "az.plot_pair(data, var_names=None, kind='scatter', divergences=True, ...)",
+    "description": "Pair plot of parameter posteriors (scatter, kde, or hexbin)",
+    "gotchas": [
+      "divergences=True highlights divergent transitions in red",
+      "Essential for diagnosing funnel geometry in hierarchical models",
+      "Use kind='hexbin' for many draws to avoid overplotting"
+    ],
+    "see_also": ["az.plot_trace", "az.plot_posterior"]
+  },
+  {
+    "name": "az.plot_rank",
+    "signature": "az.plot_rank(data, var_names=None, kind='bars', ...)",
+    "description": "Rank plot for visual convergence diagnostic",
+    "gotchas": [
+      "Uniform ranks indicate good mixing; non-uniform indicates convergence issues",
+      "More sensitive than trace plots for detecting poor mixing"
+    ],
+    "see_also": ["az.plot_trace", "az.plot_ess"]
+  },
+  {
+    "name": "az.plot_ess",
+    "signature": "az.plot_ess(data, var_names=None, kind='local', ...)",
+    "description": "Plot effective sample size across quantiles or iterations",
+    "gotchas": [
+      "kind='local' shows ESS for quantile estimation",
+      "kind='quantile' shows ESS at each quantile",
+      "Low ESS in tails may indicate poor exploration"
+    ],
+    "see_also": ["az.plot_rank", "az.summary"]
+  },
+  {
+    "name": "az.plot_energy",
+    "signature": "az.plot_energy(data, ...)",
+    "description": "Plot energy transition distribution for HMC/NUTS diagnostics",
+    "gotchas": [
+      "Large gap between marginal and transition energy indicates poor exploration",
+      "Requires sample_stats group with energy variable"
+    ],
+    "see_also": ["az.plot_trace", "az.plot_rank"]
+  },
+  {
+    "name": "az.plot_loo_pit",
+    "signature": "az.plot_loo_pit(data, y=None, ...)",
+    "description": "LOO probability integral transform — calibration check",
+    "gotchas": [
+      "Uniform distribution indicates good calibration",
+      "Requires log_likelihood and posterior_predictive groups",
+      "ArviZ 1.0: part of the new LOO diagnostics suite"
+    ],
+    "see_also": ["az.loo", "az.plot_khat"]
+  },
+  {
+    "name": "az.plot_khat",
+    "signature": "az.plot_khat(data, ...)",
+    "description": "Plot Pareto k-hat values from LOO-CV",
+    "gotchas": [
+      "k > 0.7 = unreliable LOO estimate for that observation",
+      "k > 1.0 = very problematic, consider moment matching or resampling",
+      "Pass the LOO result object directly"
+    ],
+    "see_also": ["az.loo", "az.plot_loo_pit"]
+  },
+  {
+    "name": "az.plot_compare",
+    "signature": "az.plot_compare(compare_df, ...)",
+    "description": "Plot model comparison results with error bars",
+    "gotchas": [
+      "Pass the DataFrame returned by az.compare",
+      "Shows ELPD difference with standard error bars"
+    ],
+    "see_also": ["az.compare", "az.loo"]
+  },
+  {
+    "name": "az.from_netcdf",
+    "signature": "az.from_netcdf(filename, ...)",
+    "description": "Load InferenceData from a NetCDF file",
+    "gotchas": [
+      "Standard format for saving/loading PyMC results",
+      "Use idata.to_netcdf('filename.nc') to save"
+    ],
+    "see_also": ["az.extract"]
+  },
+  {
+    "name": "az.extract",
+    "signature": "az.extract(data, group='posterior', var_names=None, num_samples=None, ...)",
+    "description": "Extract samples from InferenceData, optionally subsampling",
+    "gotchas": [
+      "ArviZ 1.0: returns a Dataset with combined chain/draw dimensions",
+      "num_samples parameter for random subsampling",
+      "Useful for post-processing and plotting"
+    ],
+    "see_also": ["az.summary", "az.from_netcdf"]
+  },
+  {
+    "name": "az.loo_expectations",
+    "signature": "az.loo_expectations(data, func=None, ...)",
+    "description": "Compute LOO expectations of arbitrary functions",
+    "gotchas": [
+      "ArviZ 1.0 new API for LOO-based model evaluation",
+      "func takes posterior predictive samples and returns a scalar",
+      "More flexible than loo alone"
+    ],
+    "see_also": ["az.loo", "az.loo_metrics", "az.loo_r2"]
+  },
+  {
+    "name": "az.loo_metrics",
+    "signature": "az.loo_metrics(data, y, metric_func, ...)",
+    "description": "Compute LOO-weighted predictive metrics (MAE, RMSE, etc.)",
+    "gotchas": [
+      "ArviZ 1.0 new API for prediction-focused model evaluation",
+      "Provides cross-validated versions of common metrics",
+      "More informative than in-sample metrics"
+    ],
+    "see_also": ["az.loo_expectations", "az.loo_r2"]
+  },
+  {
+    "name": "az.loo_r2",
+    "signature": "az.loo_r2(data, ...)",
+    "description": "LOO R-squared — cross-validated measure of explained variance",
+    "gotchas": [
+      "ArviZ 1.0 new API",
+      "More reliable than Bayesian R2 for model selection",
+      "Requires log_likelihood group"
+    ],
+    "see_also": ["az.loo", "az.loo_metrics"]
+  }
+]

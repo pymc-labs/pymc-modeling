@@ -1,0 +1,303 @@
+[
+  {
+    "id": "hierarchical_noncentered",
+    "keywords": ["hierarchical", "non-centered", "divergence", "funnel", "partial pooling", "multilevel"],
+    "title": "Non-centered hierarchical model",
+    "code": "mu_alpha = pm.Normal('mu_alpha', 0, 5)\nsigma_alpha = pm.HalfNormal('sigma_alpha', 2.5)\noffset = pm.Normal('offset', 0, 1, dims='group')\nalpha = pm.Deterministic('alpha', mu_alpha + sigma_alpha * offset, dims='group')",
+    "explanation": "Use non-centered parameterization when you see divergences in hierarchical models. Instead of alpha ~ Normal(mu, sigma), use offset ~ Normal(0, 1) and alpha = mu + sigma * offset."
+  },
+  {
+    "id": "ordered_mixture",
+    "keywords": ["mixture", "label switching", "identifiability", "ordered", "NormalMixture"],
+    "title": "Ordered mixture model (prevent label switching)",
+    "code": "w = pm.Dirichlet('w', a=np.ones(K), dims='component')\nmu = pm.Normal('mu', 0, 10, dims='component',\n               transform=pm.distributions.transforms.ordered)\nsigma = pm.HalfNormal('sigma', 5, dims='component')\ny_obs = pm.NormalMixture('y', w=w, mu=mu, sigma=sigma, observed=data)",
+    "explanation": "Apply ordered transform to component means to break the symmetry that causes label switching in mixture models."
+  },
+  {
+    "id": "horseshoe_prior",
+    "keywords": ["horseshoe", "shrinkage", "sparse", "variable selection", "regularization"],
+    "title": "Regularized horseshoe prior for sparse regression",
+    "code": "tau = pm.HalfCauchy('tau', beta=1)\nlam = pm.HalfCauchy('lam', beta=1, dims='predictor')\nc2 = pm.InverseGamma('c2', alpha=2, beta=1)\nlam_tilde = pm.math.sqrt(c2 * lam**2 / (c2 + tau**2 * lam**2))\nbeta = pm.Normal('beta', 0, tau * lam_tilde, dims='predictor')",
+    "explanation": "The regularized (Finnish) horseshoe adds a slab component (c2) to prevent pathological behavior of the original horseshoe. Use target_accept=0.95+ for the difficult geometry."
+  },
+  {
+    "id": "r2d2_prior",
+    "keywords": ["R2D2", "shrinkage", "variance decomposition", "prior", "regression"],
+    "title": "R2D2 prior for regression coefficients",
+    "code": "R2 = pm.Beta('R2', alpha=3, beta=1)  # prior on R-squared\nphi = pm.Dirichlet('phi', a=np.ones(p), dims='predictor')  # variance allocation\ntau2 = R2 / (1 - R2) * sigma_y**2\nbeta = pm.Normal('beta', 0, pm.math.sqrt(tau2 * phi), dims='predictor')",
+    "explanation": "R2D2 (R2-induced Dirichlet Decomposition) prior specifies shrinkage via the expected R-squared and allocates variance across predictors using a Dirichlet."
+  },
+  {
+    "id": "hsgp_approximation",
+    "keywords": ["HSGP", "Gaussian process", "GP", "spatial", "nonlinear", "smooth"],
+    "title": "HSGP (Hilbert Space GP) for fast GP inference",
+    "code": "cov_func = pm.gp.cov.Matern52(1, ls=ls)\ngp = pm.gp.HSGP(m=[30], cov_func=cov_func)\nf = gp.prior_linearized(X=X_centered, name='f')\ny_obs = pm.Normal('y', mu=f, sigma=sigma, observed=y)",
+    "explanation": "HSGP approximates a full GP at O(nm) cost instead of O(n^3). Use prior_linearized() for the most efficient parameterization. Center your X data and choose m large enough (start with 20-30)."
+  },
+  {
+    "id": "stochastic_volatility",
+    "keywords": ["volatility", "time series", "financial", "returns", "GaussianRandomWalk", "heavy tailed"],
+    "title": "Stochastic volatility model",
+    "code": "sigma_h = pm.HalfNormal('sigma_h', 0.5)\nnu = pm.Exponential('nu', 0.1)\nh = pm.GaussianRandomWalk('h', sigma=sigma_h, dims='time')\ny_obs = pm.StudentT('y', nu=nu, mu=0, sigma=pm.math.exp(h / 2), observed=returns)",
+    "explanation": "Model time-varying volatility with a latent log-volatility GaussianRandomWalk and StudentT likelihood for heavy-tailed returns. The exp(h/2) transform links log-volatility to observation scale."
+  },
+  {
+    "id": "ordinal_regression",
+    "keywords": ["ordinal", "ordered", "logistic", "cutpoints", "Likert", "survey"],
+    "title": "Ordinal regression with OrderedLogistic",
+    "code": "cutpoints = pm.Normal('cutpoints', mu=0, sigma=2,\n                      dims='cutpoint',\n                      transform=pm.distributions.transforms.ordered)\neta = pm.math.dot(X, beta)\ny_obs = pm.OrderedLogistic('y', eta=eta, cutpoints=cutpoints, observed=y)",
+    "explanation": "Use OrderedLogistic for ordinal outcomes (Likert scales, ratings). Apply ordered transform to cutpoints. Don't use 'cutpoints' as both variable name and dim name."
+  },
+  {
+    "id": "zero_inflated",
+    "keywords": ["zero inflated", "excess zeros", "count", "ZIP", "ZeroInflated"],
+    "title": "Zero-inflated Poisson model",
+    "code": "psi = pm.Beta('psi', alpha=2, beta=2)  # probability of Poisson component\nmu = pm.math.exp(pm.math.dot(X, beta))\ny_obs = pm.ZeroInflatedPoisson('y', psi=psi, mu=mu, observed=counts)",
+    "explanation": "Use zero-inflated models when data has more zeros than a standard count model predicts. psi is the probability of the count process (not the zero process)."
+  },
+  {
+    "id": "censored_data",
+    "keywords": ["censored", "survival", "truncated", "detection limit", "Censored"],
+    "title": "Censored data model",
+    "code": "mu = pm.Normal('mu', 0, 10)\nsigma = pm.HalfNormal('sigma', 5)\nlatent_dist = pm.Normal.dist(mu, sigma)\ny_obs = pm.Censored('y', latent_dist, lower=detection_limit, observed=y_data)",
+    "explanation": "Use pm.Censored for data with known censoring points (e.g., detection limits, follow-up times). Create the base distribution with .dist() (no name), then wrap in Censored."
+  },
+  {
+    "id": "prior_predictive_check",
+    "keywords": ["prior predictive", "prior check", "sanity check", "domain knowledge"],
+    "title": "Prior predictive checking workflow",
+    "code": "with model:\n    prior_pred = pm.sample_prior_predictive(samples=500, random_seed=42)\n\n# Check that prior predictions are in a plausible range\nimport arviz as az\naz.plot_ppc(prior_pred, group='prior')",
+    "explanation": "Always sample from the prior predictive before fitting. If predictions span impossible ranges (e.g., negative heights, probabilities > 100%), your priors are too vague."
+  },
+  {
+    "id": "posterior_predictive_check",
+    "keywords": ["posterior predictive", "model checking", "PPC", "fit quality"],
+    "title": "Posterior predictive checking",
+    "code": "with model:\n    pm.sample_posterior_predictive(idata, extend_inferencedata=True, random_seed=42)\n\naz.plot_ppc(idata, kind='kde')",
+    "explanation": "After fitting, generate posterior predictive samples and compare to observed data. Systematic discrepancies indicate model misspecification."
+  },
+  {
+    "id": "loo_cv_workflow",
+    "keywords": ["LOO", "cross-validation", "model comparison", "ELPD", "k-hat", "PSIS"],
+    "title": "LOO-CV model comparison workflow",
+    "code": "# Compute log_likelihood if not already present\npm.compute_log_likelihood(idata)\n\n# Compare models\nloo1 = az.loo(idata1)\nloo2 = az.loo(idata2)\ncomp = az.compare({'model1': idata1, 'model2': idata2})\naz.plot_compare(comp)",
+    "explanation": "Use LOO-CV for model comparison. Always check k-hat values (az.plot_khat) — values > 0.7 indicate unreliable estimates. Call pm.compute_log_likelihood explicitly if using nutpie."
+  },
+  {
+    "id": "model_comparison",
+    "keywords": ["compare", "model selection", "WAIC", "information criterion"],
+    "title": "Comparing multiple models",
+    "code": "compare_dict = {\n    'full': idata_full,\n    'reduced': idata_reduced,\n    'null': idata_null,\n}\ncomp = az.compare(compare_dict, ic='loo')\nprint(comp)\naz.plot_compare(comp)",
+    "explanation": "az.compare ranks models by ELPD. The best model has ELPD difference = 0. Check the dse (difference standard error) — if dse is large relative to the difference, the models are indistinguishable."
+  },
+  {
+    "id": "nutpie_sampling",
+    "keywords": ["nutpie", "fast", "sampling", "NUTS", "speed", "performance"],
+    "title": "Using nutpie for faster sampling",
+    "code": "idata = pm.sample(\n    draws=1000, tune=1000,\n    nuts_sampler='nutpie',\n    random_seed=42\n)\n# nutpie doesn't compute log_likelihood — do it manually\npm.compute_log_likelihood(idata)",
+    "explanation": "nutpie provides 2-5x speedup over the default PyMC NUTS sampler. Always call pm.compute_log_likelihood after if you need LOO-CV."
+  },
+  {
+    "id": "save_early_pattern",
+    "keywords": ["save", "netcdf", "checkpoint", "results", "crash"],
+    "title": "Save results early (before post-processing)",
+    "code": "# Save immediately after sampling\nidata.to_netcdf('results.nc')\n\n# Then do post-processing\naz.summary(idata)\naz.plot_trace(idata)",
+    "explanation": "Save InferenceData to disk right after sampling, before any post-processing. If post-processing crashes, you don't lose the expensive MCMC samples."
+  },
+  {
+    "id": "coords_dims",
+    "keywords": ["coords", "dims", "labeled", "dimensions", "xarray"],
+    "title": "Using coords and dims for labeled arrays",
+    "code": "coords = {\n    'school': ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'],\n    'predictor': ['age', 'income', 'education'],\n}\nwith pm.Model(coords=coords) as model:\n    beta = pm.Normal('beta', 0, 1, dims='predictor')\n    alpha = pm.Normal('alpha', 0, 5, dims='school')",
+    "explanation": "Always define coords and use dims in variable definitions. This enables automatic labeling in ArviZ plots and summaries, making results much easier to interpret."
+  },
+  {
+    "id": "glm_logistic",
+    "keywords": ["logistic", "binary", "classification", "GLM", "logit"],
+    "title": "Bayesian logistic regression",
+    "code": "with pm.Model(coords=coords) as model:\n    beta = pm.Normal('beta', 0, 2.5, dims='predictor')\n    intercept = pm.Normal('intercept', 0, 5)\n    eta = intercept + pm.math.dot(X, beta)\n    p = pm.math.invlogit(eta)\n    y_obs = pm.Bernoulli('y', p=p, observed=y, dims='obs')",
+    "explanation": "Standard logistic regression. Use weakly informative priors on coefficients (Normal(0, 2.5) on logit scale). Can also use logit_p parameter directly: pm.Bernoulli('y', logit_p=eta)."
+  },
+  {
+    "id": "glm_poisson",
+    "keywords": ["Poisson", "count", "regression", "GLM", "log link"],
+    "title": "Bayesian Poisson regression",
+    "code": "with pm.Model(coords=coords) as model:\n    beta = pm.Normal('beta', 0, 1, dims='predictor')\n    intercept = pm.Normal('intercept', 0, 5)\n    mu = pm.math.exp(intercept + pm.math.dot(X, beta))\n    y_obs = pm.Poisson('y', mu=mu, observed=counts, dims='obs')",
+    "explanation": "Poisson regression uses a log link. Priors on the log scale: Normal(0, 1) for coefficients means effects between exp(-2) and exp(2) ~ 0.14x to 7.4x multiplicative change."
+  },
+  {
+    "id": "bart_model",
+    "keywords": ["BART", "tree", "nonparametric", "flexible", "machine learning"],
+    "title": "Bayesian Additive Regression Trees (BART)",
+    "code": "with pm.Model() as model:\n    mu = pmb.BART('mu', X=X, Y=y, m=50)\n    sigma = pm.HalfNormal('sigma', 1)\n    y_obs = pm.Normal('y', mu=mu, sigma=sigma, observed=y)",
+    "explanation": "BART (from pymc-bart) provides flexible nonparametric regression. m controls the number of trees (more trees = smoother fit). Import as: import pymc_bart as pmb."
+  },
+  {
+    "id": "causal_do_observe",
+    "keywords": ["causal", "do-calculus", "intervention", "counterfactual", "DAG"],
+    "title": "Causal inference with do/observe",
+    "code": "# Define causal model\nwith pm.Model() as causal_model:\n    X = pm.Normal('X', 0, 1)\n    Z = pm.Normal('Z', X, 1)\n    Y = pm.Normal('Y', 0.5 * X + 0.3 * Z, 1)\n\n# Intervene: set X=2 (do-operator)\ndo_model = pm.do(causal_model, {'X': 2})\nwith do_model:\n    idata_do = pm.sample_prior_predictive()",
+    "explanation": "pm.do() implements the do-operator from causal inference. It removes the equation for the intervened variable and sets it to a constant. Use with pm.observe() for conditioning."
+  },
+  {
+    "id": "marginalize_discrete",
+    "keywords": ["marginalize", "discrete", "latent", "mixture", "Marginalized"],
+    "title": "Marginalizing out discrete latent variables",
+    "code": "import pymc_experimental as pmx\n\nwith pm.Model() as model:\n    w = pm.Dirichlet('w', a=np.ones(K))\n    mu = pm.Normal('mu', 0, 10, shape=K)\n    sigma = pm.HalfNormal('sigma', 5, shape=K)\n    comp = pmx.MarginalMixture('y', w=w,\n        comp_dists=[pm.Normal.dist(mu[k], sigma[k]) for k in range(K)],\n        observed=data)",
+    "explanation": "Marginalizing discrete variables (e.g., mixture assignments) improves sampling efficiency. Available in pymc-experimental or via pm.Mixture with manual marginalization."
+  },
+  {
+    "id": "laplace_approximation",
+    "keywords": ["Laplace", "MAP", "approximation", "fast", "point estimate"],
+    "title": "Laplace approximation for fast inference",
+    "code": "with model:\n    map_estimate = pm.find_MAP()\n    # For full Laplace approximation:\n    from pymc.sampling.laplace import laplace_approximation\n    idata = laplace_approximation()",
+    "explanation": "Laplace approximation uses a Gaussian centered at the MAP estimate. Much faster than MCMC but only accurate when the posterior is approximately Gaussian."
+  },
+  {
+    "id": "splines_regression",
+    "keywords": ["splines", "B-spline", "nonlinear", "smooth", "basis"],
+    "title": "Spline regression for nonlinear effects",
+    "code": "import numpy as np\nfrom patsy import dmatrix\n\nknots = np.quantile(x, np.linspace(0.1, 0.9, 8))\nB = dmatrix(f'bs(x, knots={list(knots)}, degree=3)', {'x': x})\n\nwith pm.Model() as model:\n    w = pm.Normal('w', 0, 3, shape=B.shape[1])\n    mu = pm.math.dot(np.asarray(B), w)\n    y_obs = pm.Normal('y', mu=mu, sigma=sigma, observed=y)",
+    "explanation": "Use B-splines for flexible nonlinear regression. Place knots at data quantiles. The number of knots controls smoothness (more knots = more flexible)."
+  },
+  {
+    "id": "hierarchical_varying_slopes",
+    "keywords": ["varying slopes", "random slopes", "hierarchical", "mixed effects"],
+    "title": "Hierarchical model with varying intercepts and slopes",
+    "code": "with pm.Model(coords=coords) as model:\n    # Hyperpriors\n    mu_a = pm.Normal('mu_a', 0, 5)\n    sigma_a = pm.HalfNormal('sigma_a', 2.5)\n    mu_b = pm.Normal('mu_b', 0, 2)\n    sigma_b = pm.HalfNormal('sigma_b', 1)\n    \n    # Non-centered group effects\n    za = pm.Normal('za', 0, 1, dims='group')\n    zb = pm.Normal('zb', 0, 1, dims='group')\n    a = pm.Deterministic('a', mu_a + sigma_a * za, dims='group')\n    b = pm.Deterministic('b', mu_b + sigma_b * zb, dims='group')\n    \n    mu = a[group_idx] + b[group_idx] * x\n    y_obs = pm.Normal('y', mu=mu, sigma=sigma, observed=y)",
+    "explanation": "Varying intercepts and slopes with non-centered parameterization. Each group gets its own intercept and slope, shrunk toward the population mean."
+  },
+  {
+    "id": "convergence_diagnostics",
+    "keywords": ["convergence", "r_hat", "ESS", "divergence", "diagnostics", "mixing"],
+    "title": "Comprehensive convergence diagnostics",
+    "code": "# Check r_hat (should be < 1.01)\nprint(az.summary(idata, var_names=['mu', 'sigma']))\n\n# Check divergences\ndiverging = idata.sample_stats['diverging'].sum().item()\nprint(f'Divergences: {diverging}')\n\n# Visual diagnostics\naz.plot_trace(idata)\naz.plot_rank(idata)\naz.plot_energy(idata)",
+    "explanation": "Always check convergence: r_hat < 1.01, ESS > 400, zero divergences. If divergences occur, try non-centered parameterization or increase target_accept."
+  },
+  {
+    "id": "target_accept_tuning",
+    "keywords": ["target_accept", "step size", "divergence", "tuning", "adaptation"],
+    "title": "Tuning target_accept for difficult posteriors",
+    "code": "idata = pm.sample(\n    draws=1000, tune=2000,\n    target_accept=0.95,  # default is 0.8\n    nuts_sampler='nutpie',\n    random_seed=42\n)",
+    "explanation": "Increase target_accept (0.9-0.99) for difficult posteriors with funnels or tight correlations. Higher values mean smaller step sizes and fewer divergences, but slower sampling."
+  },
+  {
+    "id": "predictive_workflow",
+    "keywords": ["prediction", "out of sample", "new data", "set_data", "forecast"],
+    "title": "Out-of-sample prediction workflow",
+    "code": "# Define model with pm.Data for mutable inputs\nwith pm.Model() as model:\n    X_data = pm.Data('X', X_train, dims=('obs', 'predictor'))\n    beta = pm.Normal('beta', 0, 1, dims='predictor')\n    mu = pm.math.dot(X_data, beta)\n    y = pm.Normal('y', mu, sigma, observed=y_train, dims='obs')\n    idata = pm.sample()\n\n# Predict on new data\nwith model:\n    pm.set_data({'X': X_test}, coords={'obs': range(len(X_test))})\n    pred = pm.sample_posterior_predictive(idata)",
+    "explanation": "Use pm.Data for inputs you want to change later. After fitting, use pm.set_data to swap in new data and sample_posterior_predictive for predictions."
+  },
+  {
+    "id": "robust_regression",
+    "keywords": ["robust", "outlier", "Student-t", "heavy tailed", "contamination"],
+    "title": "Robust regression with Student-t likelihood",
+    "code": "with pm.Model() as model:\n    beta = pm.Normal('beta', 0, 5, dims='predictor')\n    sigma = pm.HalfNormal('sigma', 5)\n    nu = pm.Gamma('nu', alpha=2, beta=0.1)  # degrees of freedom\n    mu = pm.math.dot(X, beta)\n    y_obs = pm.StudentT('y', nu=nu, mu=mu, sigma=sigma, observed=y)",
+    "explanation": "Replace Normal likelihood with StudentT for robustness to outliers. The Gamma prior on nu allows the model to learn the degree of heavy-tailedness from the data."
+  },
+  {
+    "id": "negative_binomial",
+    "keywords": ["overdispersion", "NegativeBinomial", "count", "variance"],
+    "title": "Negative binomial for overdispersed counts",
+    "code": "with pm.Model() as model:\n    beta = pm.Normal('beta', 0, 1, dims='predictor')\n    alpha = pm.Exponential('alpha', 1)  # overdispersion\n    mu = pm.math.exp(pm.math.dot(X, beta))\n    y_obs = pm.NegativeBinomial('y', mu=mu, alpha=alpha, observed=counts)",
+    "explanation": "Use NegativeBinomial when count data has variance > mean (overdispersion). The alpha parameter controls overdispersion; as alpha -> inf, approaches Poisson."
+  },
+  {
+    "id": "gaussian_process_periodic",
+    "keywords": ["periodic", "seasonal", "GP", "cyclic", "HSGPPeriodic"],
+    "title": "Periodic Gaussian process for seasonal data",
+    "code": "cov_periodic = pm.gp.cov.Periodic(1, period=365.25, ls=30)\ngp_seasonal = pm.gp.HSGPPeriodic(m=20, cov_func=cov_periodic)\nf_seasonal = gp_seasonal.prior('f_seasonal', X=day_of_year)",
+    "explanation": "Use HSGPPeriodic for seasonal patterns. The period parameter sets the cycle length. Combine with a non-periodic GP for trend + seasonality decomposition."
+  },
+  {
+    "id": "change_point",
+    "keywords": ["change point", "regime", "switch", "structural break"],
+    "title": "Change point detection",
+    "code": "with pm.Model() as model:\n    tau = pm.DiscreteUniform('tau', lower=0, upper=n_obs)\n    mu1 = pm.Normal('mu1', 0, 10)\n    mu2 = pm.Normal('mu2', 0, 10)\n    idx = np.arange(n_obs)\n    mu = pm.math.switch(tau >= idx, mu1, mu2)\n    y_obs = pm.Normal('y', mu=mu, sigma=sigma, observed=y)",
+    "explanation": "For single change points, use a discrete switch. For multiple change points or smoother transitions, consider mixture models or latent state-space models."
+  },
+  {
+    "id": "multivariate_normal",
+    "keywords": ["multivariate", "correlation", "covariance", "LKJ", "MvNormal"],
+    "title": "Multivariate normal with LKJ correlation prior",
+    "code": "with pm.Model() as model:\n    # LKJ prior on correlation matrix\n    chol, corr, stds = pm.LKJCholeskyCov('chol', n=p, eta=2,\n        sd_dist=pm.Exponential.dist(1), compute_corr=True)\n    mu = pm.Normal('mu', 0, 5, shape=p)\n    y_obs = pm.MvNormal('y', mu=mu, chol=chol, observed=Y)",
+    "explanation": "LKJCholeskyCov is the recommended way to parameterize covariance matrices. eta=1 is uniform over correlations, eta=2 favors less correlation. Returns Cholesky factor for efficient computation."
+  },
+  {
+    "id": "imputation_missing",
+    "keywords": ["missing", "imputation", "NaN", "incomplete"],
+    "title": "Bayesian imputation for missing data",
+    "code": "# Mask missing values\nmissing_mask = np.isnan(y_raw)\ny_observed = np.where(missing_mask, -999, y_raw)  # placeholder\n\nwith pm.Model() as model:\n    mu = pm.Normal('mu', 0, 10)\n    sigma = pm.HalfNormal('sigma', 5)\n    # PyMC auto-imputes when observed has NaN\n    y = pm.Normal('y', mu=mu, sigma=sigma, observed=y_raw)",
+    "explanation": "PyMC automatically handles NaN values in observed data by treating them as missing and imputing. Alternatively, use explicit imputation with masked arrays."
+  },
+  {
+    "id": "beta_regression",
+    "keywords": ["beta regression", "proportion", "rate", "bounded"],
+    "title": "Beta regression for bounded outcomes (0, 1)",
+    "code": "with pm.Model() as model:\n    beta = pm.Normal('beta', 0, 1, dims='predictor')\n    eta = pm.math.dot(X, beta)\n    mu = pm.math.invlogit(eta)\n    kappa = pm.HalfNormal('kappa', 10)  # precision\n    alpha = mu * kappa\n    beta_param = (1 - mu) * kappa\n    y_obs = pm.Beta('y', alpha=alpha, beta=beta_param, observed=y)",
+    "explanation": "Beta regression for proportion data on (0, 1). Parameterize via mean (mu) and precision (kappa). Use logit link for the mean."
+  },
+  {
+    "id": "gp_time_series",
+    "keywords": ["time series", "GP", "trend", "decomposition", "additive"],
+    "title": "GP-based time series decomposition",
+    "code": "# Trend component\ncov_trend = pm.gp.cov.Matern52(1, ls=ls_trend)\ngp_trend = pm.gp.HSGP(m=[30], cov_func=cov_trend)\nf_trend = gp_trend.prior_linearized(X=t_centered, name='trend')\n\n# Seasonal component\ncov_seasonal = pm.gp.cov.Periodic(1, period=12, ls=ls_seasonal)\ngp_seasonal = pm.gp.HSGPPeriodic(m=20, cov_func=cov_seasonal)\nf_seasonal = gp_seasonal.prior('seasonal', X=t)\n\nmu = f_trend + f_seasonal",
+    "explanation": "Decompose time series into trend and seasonal components using additive GPs. HSGP for the trend and HSGPPeriodic for seasonality."
+  },
+  {
+    "id": "survival_analysis",
+    "keywords": ["survival", "hazard", "censoring", "Weibull", "time to event"],
+    "title": "Parametric survival model with censoring",
+    "code": "with pm.Model() as model:\n    alpha = pm.Gamma('alpha', alpha=2, beta=1)  # shape\n    beta_surv = pm.Normal('beta', 0, 1, dims='predictor')\n    lam = pm.math.exp(pm.math.dot(X, beta_surv))  # rate\n    \n    # Right-censored Weibull\n    latent = pm.Weibull.dist(alpha=alpha, beta=1/lam)\n    y_obs = pm.Censored('y', latent, lower=None,\n                         upper=censor_time, observed=time_data)",
+    "explanation": "Use pm.Censored for survival models with right-censoring. The upper bound is the censoring time for censored observations and None for uncensored."
+  },
+  {
+    "id": "softmax_classification",
+    "keywords": ["multiclass", "classification", "softmax", "categorical"],
+    "title": "Bayesian multiclass classification",
+    "code": "with pm.Model(coords=coords) as model:\n    beta = pm.Normal('beta', 0, 2.5, dims=('predictor', 'class'))\n    eta = pm.math.dot(X, beta)\n    p = pm.math.softmax(eta, axis=-1)\n    y_obs = pm.Categorical('y', p=p, observed=y, dims='obs')",
+    "explanation": "For K-class classification, use K coefficient vectors and softmax. One class can be set as reference (beta=0) for identifiability."
+  },
+  {
+    "id": "measurement_error",
+    "keywords": ["measurement error", "errors in variables", "latent"],
+    "title": "Regression with measurement error",
+    "code": "with pm.Model() as model:\n    # True latent values\n    x_true = pm.Normal('x_true', mu=x_measured.mean(), sigma=5, dims='obs')\n    # Observed X with known measurement error\n    x_obs = pm.Normal('x_obs', mu=x_true, sigma=x_se, observed=x_measured, dims='obs')\n    # Regression on true values\n    beta = pm.Normal('beta', 0, 5)\n    y_obs = pm.Normal('y', mu=beta * x_true, sigma=sigma, observed=y)",
+    "explanation": "When predictors have known measurement error, model the true latent values explicitly. This corrects for attenuation bias."
+  },
+  {
+    "id": "dirichlet_multinomial",
+    "keywords": ["Dirichlet", "multinomial", "compositional", "proportion"],
+    "title": "Dirichlet-Multinomial for compositional data",
+    "code": "with pm.Model(coords=coords) as model:\n    # Concentration parameter\n    alpha = pm.Gamma('alpha', alpha=1, beta=0.1, dims='category')\n    # Proportions\n    theta = pm.Dirichlet('theta', a=alpha, dims=('group', 'category'))\n    # Counts\n    y_obs = pm.Multinomial('y', n=total_counts, p=theta, observed=counts)",
+    "explanation": "Dirichlet-Multinomial handles overdispersion in categorical count data. The Dirichlet allows proportions to vary across groups."
+  },
+  {
+    "id": "gp_spatial",
+    "keywords": ["spatial", "kriging", "geographic", "2D", "Matern"],
+    "title": "Spatial Gaussian process (2D)",
+    "code": "# 2D spatial GP\ncov_func = pm.gp.cov.Matern32(2, ls=[ls_x, ls_y])\ngp = pm.gp.HSGP(m=[15, 15], cov_func=cov_func)\nf = gp.prior_linearized(X=coords_2d, name='spatial')\ny_obs = pm.Normal('y', mu=f, sigma=sigma, observed=y)",
+    "explanation": "For 2D spatial data, use HSGP with m=[m1, m2] basis functions per dimension. Matern32 or Matern52 covariance functions are standard choices for spatial smoothness."
+  },
+  {
+    "id": "ar_time_series",
+    "keywords": ["autoregressive", "AR", "time series", "stationary"],
+    "title": "Autoregressive time series model",
+    "code": "with pm.Model() as model:\n    rho = pm.Normal('rho', 0, 0.5)  # AR(1) coefficient\n    sigma = pm.HalfNormal('sigma', 1)\n    init = pm.Normal.dist(0, 5)\n    y_latent = pm.AR('y', rho=rho, sigma=sigma,\n                     init_dist=init, steps=n_obs, dims='time')\n    y_obs = pm.Normal('y_obs', mu=y_latent, sigma=obs_sigma, observed=y)",
+    "explanation": "pm.AR supports AR(p) processes. For AR(1), rho is scalar. For AR(p), rho is a vector of length p. Set init_dist for the first p values."
+  },
+  {
+    "id": "model_averaging",
+    "keywords": ["model averaging", "stacking", "BMA", "ensemble"],
+    "title": "Bayesian model averaging via stacking",
+    "code": "# Fit multiple models and compute LOO for each\nmodels = {'m1': idata1, 'm2': idata2, 'm3': idata3}\ncomp = az.compare(models, ic='loo')\n\n# Stacking weights are in the comparison table\nprint(comp[['weight']])\n\n# Use weights for prediction averaging",
+    "explanation": "az.compare with method='stacking' (default) provides optimal model weights for prediction. These weights often outperform single-model selection."
+  },
+  {
+    "id": "hierarchical_correlation",
+    "keywords": ["correlated", "random effects", "LKJ", "multivariate hierarchy"],
+    "title": "Correlated random effects in hierarchical model",
+    "code": "with pm.Model(coords=coords) as model:\n    # Correlated group effects\n    chol, corr, stds = pm.LKJCholeskyCov('chol', n=2, eta=2,\n        sd_dist=pm.HalfNormal.dist(2.5), compute_corr=True)\n    # Non-centered\n    z = pm.Normal('z', 0, 1, dims=('group', 'effect'))\n    effects = pm.Deterministic('effects',\n        pt.dot(z, chol.T), dims=('group', 'effect'))",
+    "explanation": "When group-level intercepts and slopes are correlated, model them jointly with LKJCholeskyCov. This captures the correlation structure while maintaining non-centered parameterization."
+  }
+]
