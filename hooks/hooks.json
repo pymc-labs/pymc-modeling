@@ -1,0 +1,44 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/suggest-skill.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/check-pymc-write.sh",
+            "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/append-diagnostics.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Before compacting context, summarize: (1) Current model specification (priors, likelihood, coords/dims), (2) Any convergence issues encountered and their resolution, (3) Key modeling decisions made so far, (4) Next steps planned. Format as a compact note that preserves essential modeling context."
+          }
+        ]
+      }
+    ]
+  }
+}

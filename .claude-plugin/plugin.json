@@ -1,0 +1,11 @@
+{
+  "name": "pymc-modeling",
+  "description": "PyMC Bayesian modeling skills, agents, hooks, and tools for Claude Code",
+  "version": "1.0.0",
+  "author": {
+    "name": "Chris Fonnesbeck"
+  },
+  "repository": "https://github.com/pymc-labs/pymc-modeling",
+  "license": "MIT",
+  "keywords": ["python", "bayesian", "pymc", "arviz", "mcmc", "data-science"]
+}
