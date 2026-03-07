@@ -1,6 +1,5 @@
 """Evals for the MCP server tool functions — tests search, lookup, and error matching."""
 
-import json
 import sys
 from pathlib import Path
 
@@ -25,71 +24,71 @@ from pymc_docs_server.server import (
 # ── Data integrity ───────────────────────────────────────────────────────────
 
 class TestDataIntegrity:
-    def test_api_entries_have_required_fields(self):
-        for entry in ALL_API:
+    def test_api_entries_have_required_fields(self, mcp_all_api):
+        for entry in mcp_all_api:
             assert "name" in entry, f"API entry missing 'name': {entry}"
             assert "signature" in entry, f"API entry missing 'signature': {entry.get('name')}"
             assert "description" in entry, f"API entry missing 'description': {entry.get('name')}"
 
-    def test_patterns_have_required_fields(self):
-        for pattern in PATTERNS:
+    def test_patterns_have_required_fields(self, mcp_patterns):
+        for pattern in mcp_patterns:
             assert "keywords" in pattern, f"Pattern missing 'keywords': {pattern}"
             assert "title" in pattern, f"Pattern missing 'title': {pattern}"
             assert "code" in pattern, f"Pattern missing 'code': {pattern}"
             assert "explanation" in pattern, f"Pattern missing 'explanation': {pattern}"
 
-    def test_error_patterns_have_required_fields(self):
-        for err in ERROR_PATTERNS:
+    def test_error_patterns_have_required_fields(self, mcp_error_patterns):
+        for err in mcp_error_patterns:
             assert "pattern" in err, f"Error pattern missing 'pattern'"
             assert "keywords" in err, f"Error pattern missing 'keywords': {err.get('pattern')}"
             assert "title" in err, f"Error pattern missing 'title': {err.get('pattern')}"
             assert "fix" in err, f"Error pattern missing 'fix': {err.get('pattern')}"
 
-    def test_api_has_core_functions(self):
-        names = {e["name"] for e in ALL_API}
+    def test_api_has_core_functions(self, mcp_all_api):
+        names = {e["name"] for e in mcp_all_api}
         core = ["pm.sample", "pm.Model", "pm.Normal"]
         for fn in core:
             assert fn in names, f"Missing core API entry: {fn}"
 
-    def test_patterns_not_empty(self):
-        assert len(PATTERNS) >= 3, f"Expected at least 3 patterns, got {len(PATTERNS)}"
+    def test_patterns_not_empty(self, mcp_patterns):
+        assert len(mcp_patterns) >= 3, f"Expected at least 3 patterns, got {len(mcp_patterns)}"
 
-    def test_error_patterns_not_empty(self):
-        assert len(ERROR_PATTERNS) >= 5, f"Expected at least 5 error patterns, got {len(ERROR_PATTERNS)}"
+    def test_error_patterns_not_empty(self, mcp_error_patterns):
+        assert len(mcp_error_patterns) >= 5, f"Expected at least 5 error patterns, got {len(mcp_error_patterns)}"
 
-    def test_api_gotchas_are_lists(self):
+    def test_api_gotchas_are_lists(self, mcp_all_api):
         """gotchas field should be a list, not a string."""
-        for entry in ALL_API:
+        for entry in mcp_all_api:
             if "gotchas" in entry:
                 assert isinstance(entry["gotchas"], list), (
                     f"gotchas should be a list in {entry['name']}, got {type(entry['gotchas'])}"
                 )
 
-    def test_api_see_also_are_lists(self):
+    def test_api_see_also_are_lists(self, mcp_all_api):
         """see_also field should be a list when present."""
-        for entry in ALL_API:
+        for entry in mcp_all_api:
             if "see_also" in entry:
                 assert isinstance(entry["see_also"], list), (
                     f"see_also should be a list in {entry['name']}, got {type(entry['see_also'])}"
                 )
 
-    def test_no_duplicate_api_names(self):
+    def test_no_duplicate_api_names(self, mcp_all_api):
         """No duplicate name values across ALL_API."""
-        names = [e["name"] for e in ALL_API]
+        names = [e["name"] for e in mcp_all_api]
         dupes = [n for n in names if names.count(n) > 1]
         assert not dupes, f"Duplicate API names: {set(dupes)}"
 
-    def test_pattern_code_contains_pymc(self):
+    def test_pattern_code_contains_pymc(self, mcp_patterns):
         """Pattern code fields should contain valid-looking Python."""
-        for pattern in PATTERNS:
+        for pattern in mcp_patterns:
             code = pattern["code"]
             assert "pm." in code or "az." in code or "import" in code or "pymc" in code.lower(), (
                 f"Pattern '{pattern['title']}' code doesn't look like PyMC/ArviZ Python"
             )
 
-    def test_error_pattern_keywords_nonempty(self):
+    def test_error_pattern_keywords_nonempty(self, mcp_error_patterns):
         """Error pattern keywords lists should be non-empty."""
-        for err in ERROR_PATTERNS:
+        for err in mcp_error_patterns:
             assert len(err["keywords"]) > 0, (
                 f"Error pattern '{err['pattern']}' has empty keywords list"
             )
@@ -169,9 +168,9 @@ class TestArviZApiLookup:
         result = pymc_api_lookup("az.compare")
         assert "compare" in result.lower()
 
-    def test_all_api_contains_arviz(self):
+    def test_all_api_contains_arviz(self, mcp_all_api):
         """ALL_API should contain both PyMC and ArviZ entries."""
-        names = {e["name"] for e in ALL_API}
+        names = {e["name"] for e in mcp_all_api}
         arviz_names = [n for n in names if n.startswith("az.")]
         assert len(arviz_names) >= 3, f"Expected at least 3 ArviZ entries, found {len(arviz_names)}"
 
@@ -205,6 +204,26 @@ class TestExampleSearch:
         result = pymc_example_search("hierarchical")
         if "No patterns" not in result:
             assert "```python" in result
+
+    def test_hierarchical_ranks_first(self):
+        """The best match for 'hierarchical' should appear in the first result block."""
+        result = pymc_example_search("hierarchical")
+        if "No patterns" not in result:
+            # The first pattern title in the output should contain 'hierarchical'
+            first_section = result.split("---")[0] if "---" in result else result
+            assert "hierarchical" in first_section.lower(), (
+                "Expected 'hierarchical' pattern to rank first"
+            )
+
+    def test_mixture_ranks_in_top_results(self):
+        """A search for 'mixture model' should rank mixture-related results in top 3."""
+        result = pymc_example_search("mixture model")
+        if "No patterns" not in result:
+            sections = result.split("---")[:3]
+            top_text = " ".join(sections).lower()
+            assert "mixture" in top_text, (
+                "Expected 'mixture' to appear in top 3 results"
+            )
 
 
 # ── pymc_error_lookup ────────────────────────────────────────────────────────
@@ -254,6 +273,14 @@ class TestErrorLookup:
         result = pymc_error_lookup(keyword)
         assert error_pattern["title"] in result, (
             f"Error pattern '{error_pattern['pattern']}' not found via keyword '{keyword}'"
+        )
+
+    def test_divergence_ranks_first(self):
+        """Divergence error should be the first match for 'divergent transitions'."""
+        result = pymc_error_lookup("I'm getting divergent transitions")
+        first_section = result.split("---")[0] if "---" in result else result
+        assert "divergen" in first_section.lower(), (
+            "Expected divergence fix to rank first"
         )
 
 

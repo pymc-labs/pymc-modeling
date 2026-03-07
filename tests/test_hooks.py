@@ -1,6 +1,7 @@
 """Evals for hook scripts — tests keyword matching and lint checks."""
 
 import json
+import os
 import subprocess
 from pathlib import Path
 
@@ -13,7 +14,6 @@ POST_WRITE_SCRIPT = PLUGIN_ROOT / "hooks" / "scripts" / "pymc-post-write.sh"
 
 def _run_hook(script: Path, stdin_data: dict, env_override: dict | None = None) -> dict:
     """Run a hook script with JSON on stdin, return parsed JSON output or empty dict."""
-    import os
     env = os.environ.copy()
     env["CLAUDE_PLUGIN_ROOT"] = str(PLUGIN_ROOT)
     if env_override:
@@ -35,80 +35,148 @@ def _run_hook(script: Path, stdin_data: dict, env_override: dict | None = None) 
     return json.loads(stdout)
 
 
+def _run_hook_batch(script: Path, prompts: list[str], key: str = "user_prompt") -> list[dict]:
+    """Run a hook script once per prompt, batched in a single shell process.
+
+    Writes a bash wrapper that loops over prompts fed via a here-doc,
+    calling the real script for each one. Returns a list of parsed outputs.
+    """
+    env = os.environ.copy()
+    env["CLAUDE_PLUGIN_ROOT"] = str(PLUGIN_ROOT)
+
+    # Build a bash script that feeds each prompt to the hook
+    # and collects outputs separated by a delimiter
+    delimiter = "---HOOK_OUTPUT_BOUNDARY---"
+    inputs = []
+    for prompt in prompts:
+        payload = json.dumps({key: prompt})
+        inputs.append(payload)
+
+    # Create a wrapper that runs the script for each input
+    wrapper = f"""#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT="{script}"
+"""
+    for payload in inputs:
+        escaped = payload.replace("'", "'\\''")
+        wrapper += f"echo '{escaped}' | bash \"$SCRIPT\" || true\n"
+        wrapper += f"echo '{delimiter}'\n"
+
+    result = subprocess.run(
+        ["bash", "-c", wrapper],
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=env,
+    )
+
+    outputs = []
+    for chunk in result.stdout.split(delimiter):
+        chunk = chunk.strip()
+        if not chunk:
+            outputs.append({})
+        else:
+            try:
+                outputs.append(json.loads(chunk))
+            except json.JSONDecodeError:
+                outputs.append({})
+
+    # Pad if needed (shouldn't happen)
+    while len(outputs) < len(prompts):
+        outputs.append({})
+
+    return outputs[:len(prompts)]
+
+
 # ── suggest-skill.sh ─────────────────────────────────────────────────────────
 
 class TestSuggestSkillKeywords:
-    """Test that the suggest-skill hook triggers on expected keywords."""
+    """Test that the suggest-skill hook triggers on expected keywords.
 
-    @pytest.mark.parametrize("prompt", [
+    Uses batch execution to minimize subprocess overhead.
+    """
+
+    PYMC_PROMPTS = [
         "Build a Bayesian hierarchical model",
         "Use pymc to fit a regression",
         "I need to run MCMC sampling",
         "Check the posterior predictive",
         "Fix these divergences",
         "Use nutpie for faster sampling",
-    ])
-    def test_pymc_keywords_trigger(self, prompt):
-        output = _run_hook(SUGGEST_SCRIPT, {"user_prompt": prompt})
-        assert "systemMessage" in output, f"No suggestion for: {prompt}"
-        assert "pymc-modeling" in output["systemMessage"]
+    ]
 
-    @pytest.mark.parametrize("prompt", [
+    TESTING_PROMPTS = [
         "Write a unit test for my PyMC model",
         "Set up pytest fixtures for pymc",
         "How to use mock_sample in tests",
-    ])
-    def test_testing_keywords_trigger(self, prompt):
-        output = _run_hook(SUGGEST_SCRIPT, {"user_prompt": prompt})
-        assert "systemMessage" in output, f"No suggestion for: {prompt}"
-        assert "pymc-testing" in output["systemMessage"]
+    ]
 
-    @pytest.mark.parametrize("prompt", [
+    PRIOR_ELICITATION_PROMPTS = [
         "Help me with prior elicitation",
         "Use PreliZ to find constrained priors",
         "I need weakly informative priors",
-    ])
-    def test_prior_elicitation_keywords_trigger(self, prompt):
-        output = _run_hook(SUGGEST_SCRIPT, {"user_prompt": prompt})
-        assert "systemMessage" in output, f"No suggestion for: {prompt}"
-        assert "prior-elicitation" in output["systemMessage"]
+    ]
 
-    @pytest.mark.parametrize("prompt", [
+    MODEL_EVAL_PROMPTS = [
         "Compare models using LOO",
         "Run cross-validation on the model",
         "Compute ELPD for model comparison",
         "What are the stacking weights",
-    ])
-    def test_model_evaluation_keywords_trigger(self, prompt):
-        output = _run_hook(SUGGEST_SCRIPT, {"user_prompt": prompt})
-        assert "systemMessage" in output, f"No suggestion for: {prompt}"
-        assert "model-evaluation" in output["systemMessage"]
+    ]
 
-    @pytest.mark.parametrize("prompt", [
+    EXTRAS_PROMPTS = [
         "Use pymc-extras splines",
         "Apply R2D2 prior",
         "Use Laplace approximation with fit_laplace",
         "Try the horseshoe prior from pymc_extras",
-    ])
-    def test_pymc_extras_keywords_trigger(self, prompt):
-        output = _run_hook(SUGGEST_SCRIPT, {"user_prompt": prompt})
-        assert "systemMessage" in output, f"No suggestion for: {prompt}"
-        assert "pymc-extras" in output["systemMessage"]
+    ]
+
+    def test_pymc_keywords_trigger(self):
+        outputs = _run_hook_batch(SUGGEST_SCRIPT, self.PYMC_PROMPTS)
+        for prompt, output in zip(self.PYMC_PROMPTS, outputs):
+            assert "systemMessage" in output, f"No suggestion for: {prompt}"
+            assert "pymc-modeling" in output["systemMessage"]
+
+    def test_testing_keywords_trigger(self):
+        outputs = _run_hook_batch(SUGGEST_SCRIPT, self.TESTING_PROMPTS)
+        for prompt, output in zip(self.TESTING_PROMPTS, outputs):
+            assert "systemMessage" in output, f"No suggestion for: {prompt}"
+            assert "pymc-testing" in output["systemMessage"]
+
+    def test_prior_elicitation_keywords_trigger(self):
+        outputs = _run_hook_batch(SUGGEST_SCRIPT, self.PRIOR_ELICITATION_PROMPTS)
+        for prompt, output in zip(self.PRIOR_ELICITATION_PROMPTS, outputs):
+            assert "systemMessage" in output, f"No suggestion for: {prompt}"
+            assert "prior-elicitation" in output["systemMessage"]
+
+    def test_model_evaluation_keywords_trigger(self):
+        outputs = _run_hook_batch(SUGGEST_SCRIPT, self.MODEL_EVAL_PROMPTS)
+        for prompt, output in zip(self.MODEL_EVAL_PROMPTS, outputs):
+            assert "systemMessage" in output, f"No suggestion for: {prompt}"
+            assert "model-evaluation" in output["systemMessage"]
+
+    def test_pymc_extras_keywords_trigger(self):
+        outputs = _run_hook_batch(SUGGEST_SCRIPT, self.EXTRAS_PROMPTS)
+        for prompt, output in zip(self.EXTRAS_PROMPTS, outputs):
+            assert "systemMessage" in output, f"No suggestion for: {prompt}"
+            assert "pymc-extras" in output["systemMessage"]
 
 
 class TestSuggestSkillNonTrigger:
     """Test that unrelated prompts don't trigger suggestions."""
 
-    @pytest.mark.parametrize("prompt", [
+    NON_TRIGGER_PROMPTS = [
         "Write a hello world in Python",
         "Create a REST API with FastAPI",
         "Help me debug this JavaScript",
         "Set up a Docker container",
         "Write SQL to query users",
-    ])
-    def test_unrelated_prompts_no_trigger(self, prompt):
-        output = _run_hook(SUGGEST_SCRIPT, {"user_prompt": prompt})
-        assert output == {}, f"Unexpected suggestion for: {prompt}"
+    ]
+
+    def test_unrelated_prompts_no_trigger(self):
+        outputs = _run_hook_batch(SUGGEST_SCRIPT, self.NON_TRIGGER_PROMPTS)
+        for prompt, output in zip(self.NON_TRIGGER_PROMPTS, outputs):
+            assert output == {}, f"Unexpected suggestion for: {prompt}"
 
 
 class TestSuggestSkillEdgeCases:
