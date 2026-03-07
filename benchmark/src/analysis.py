@@ -6,6 +6,7 @@ effect sizes and generating markdown reports.
 
 import json
 import math
+import random
 from pathlib import Path
 
 import polars as pl
@@ -116,11 +117,69 @@ def cohens_d(group1: list[float], group2: list[float]) -> float:
     return (mean2 - mean1) / math.sqrt(pooled_var)
 
 
+def bootstrap_ci(
+    group1: list[float], group2: list[float],
+    n_bootstrap: int = 5000, ci: float = 0.95,
+    seed: int = 42,
+) -> tuple[float, float]:
+    """Bootstrap confidence interval for Cohen's d.
+
+    Returns (lower, upper) bounds of the CI.
+    Returns (nan, nan) if either group has < 2 observations.
+    """
+    n1, n2 = len(group1), len(group2)
+    if n1 < 2 or n2 < 2:
+        return (float("nan"), float("nan"))
+
+    rng = random.Random(seed)
+    ds = []
+    for _ in range(n_bootstrap):
+        b1 = rng.choices(group1, k=n1)
+        b2 = rng.choices(group2, k=n2)
+        d = cohens_d(b1, b2)
+        if not math.isnan(d):
+            ds.append(d)
+
+    if not ds:
+        return (float("nan"), float("nan"))
+
+    ds.sort()
+    alpha = 1 - ci
+    lo = ds[int(len(ds) * alpha / 2)]
+    hi = ds[int(len(ds) * (1 - alpha / 2))]
+    return (round(lo, 3), round(hi, 3))
+
+
+def paired_significance_test(
+    group1: list[float], group2: list[float],
+) -> tuple[float | None, str]:
+    """Wilcoxon signed-rank test for paired differences.
+
+    Returns (p_value, method_name). Returns (None, "insufficient data") if < 5 pairs.
+    """
+    from scipy import stats
+    n = min(len(group1), len(group2))
+    if n < 5:
+        return (None, "insufficient data")
+
+    g1 = group1[:n]
+    g2 = group2[:n]
+
+    # Check if all differences are zero
+    diffs = [b - a for a, b in zip(g1, g2)]
+    if all(d == 0 for d in diffs):
+        return (1.0, "wilcoxon (all differences zero)")
+
+    stat, p = stats.wilcoxon(g1, g2, alternative="two-sided")
+    return (round(p, 4), "wilcoxon")
+
+
 def compute_effect_sizes(df: pl.DataFrame) -> pl.DataFrame:
     """Compute Cohen's d for each task and criterion.
 
-    Returns a DataFrame with columns: task_id, criterion, d, no_skill_mean,
-    with_skill_mean, no_skill_sd, with_skill_sd, n_no_skill, n_with_skill.
+    Returns a DataFrame with columns: task_id, criterion, d, d_ci_lower,
+    d_ci_upper, p_value, no_skill_mean, with_skill_mean, n_no_skill,
+    n_with_skill.
     """
     records = []
 
@@ -145,11 +204,16 @@ def compute_effect_sizes(df: pl.DataFrame) -> pl.DataFrame:
             with_skill_f = [float(x) for x in with_skill]
 
             d = cohens_d(no_skill_f, with_skill_f)
+            ci_lo, ci_hi = bootstrap_ci(no_skill_f, with_skill_f)
+            p_val, _method = paired_significance_test(no_skill_f, with_skill_f)
 
             records.append({
                 "task_id": task_id,
                 "criterion": criterion,
                 "d": round(d, 3) if not math.isnan(d) else None,
+                "d_ci_lower": ci_lo if not math.isnan(ci_lo) else None,
+                "d_ci_upper": ci_hi if not math.isnan(ci_hi) else None,
+                "p_value": p_val,
                 "no_skill_mean": round(sum(no_skill_f) / len(no_skill_f), 2) if no_skill_f else None,
                 "with_skill_mean": round(sum(with_skill_f) / len(with_skill_f), 2) if with_skill_f else None,
                 "n_no_skill": len(no_skill_f),
@@ -261,6 +325,34 @@ def generate_report(
             f"{row['total_mean']:.1f} |"
         )
 
+    # Score Distribution
+    lines.extend(["", "## Score Distribution", ""])
+    lines.append("| Task | Condition | Criterion | Median | Q1 | Q3 | Min | Max |")
+    lines.append("|------|-----------|-----------|--------|----|----|-----|-----|")
+
+    for task_id in df.get_column("task_id").unique().sort().to_list():
+        for condition in ["no_skill", "with_skill"]:
+            subset = df.filter(
+                (pl.col("task_id") == task_id) & (pl.col("condition") == condition)
+            )
+            if subset.is_empty():
+                continue
+            for criterion in CRITERIA:
+                col = subset.get_column(criterion).cast(pl.Float64)
+                stats = col.to_frame().select([
+                    pl.col(criterion).median().alias("median"),
+                    pl.col(criterion).quantile(0.25).alias("q1"),
+                    pl.col(criterion).quantile(0.75).alias("q3"),
+                    pl.col(criterion).min().alias("min"),
+                    pl.col(criterion).max().alias("max"),
+                ])
+                r = stats.row(0, named=True)
+                lines.append(
+                    f"| {task_id} | {condition} | {criterion} | "
+                    f"{r['median']:.1f} | {r['q1']:.1f} | {r['q3']:.1f} | "
+                    f"{r['min']:.1f} | {r['max']:.1f} |"
+                )
+
     # Pass/Fail Summary
     pass_rates = pass_rate_table(df)
     lines.extend([
@@ -343,18 +435,26 @@ def generate_report(
     lines.extend(["", "## Effect Sizes (Cohen's d)", ""])
     lines.append("Positive d = skill helps. |d| interpretation: <0.2 negligible, 0.2-0.5 small, 0.5-0.8 medium, >0.8 large.")
     lines.append("")
-    lines.append("| Task | Criterion | d | no_skill mean | with_skill mean | Interpretation |")
-    lines.append("|------|-----------|---|---------------|-----------------|----------------|")
+    lines.append("| Task | Criterion | d | 95% CI | p-value | no_skill mean | with_skill mean | Interpretation |")
+    lines.append("|------|-----------|---|--------|---------|---------------|-----------------|----------------|")
 
     for row in effects.iter_rows(named=True):
         d_val = row["d"]
         d_str = "N/A" if d_val is None or math.isnan(d_val) else f"{d_val:.2f}"
+        ci_lo = row.get("d_ci_lower")
+        ci_hi = row.get("d_ci_upper")
+        if ci_lo is not None and ci_hi is not None and not math.isnan(ci_lo) and not math.isnan(ci_hi):
+            ci_str = f"[{ci_lo:.2f}, {ci_hi:.2f}]"
+        else:
+            ci_str = "N/A"
+        p_val = row.get("p_value")
+        p_str = f"{p_val:.4f}" if p_val is not None else "N/A"
         ns_mean = f"{row['no_skill_mean']:.1f}" if row["no_skill_mean"] is not None else "N/A"
         ws_mean = f"{row['with_skill_mean']:.1f}" if row["with_skill_mean"] is not None else "N/A"
         interp = _interpret_d(row["d"])
         lines.append(
             f"| {row['task_id']} | {row['criterion']} | {d_str} | "
-            f"{ns_mean} | {ws_mean} | {interp} |"
+            f"{ci_str} | {p_str} | {ns_mean} | {ws_mean} | {interp} |"
         )
 
     # Overall effect

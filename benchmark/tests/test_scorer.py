@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 
 from src.scorer import (
+    _extract_judge_json,
     _score_appropriateness_regex,
     count_retries,
     evaluate_pass_fail,
@@ -660,3 +661,179 @@ class TestScoreParameterRecovery:
         score, details = score_parameter_recovery(run_dir, "T3_stochastic_volatility")
         assert "h" in details.get("volatility_vars", [])
         assert score >= 3
+
+    def test_t1_false_positive_mu_names(self, run_dir):
+        """T1: 'momentum', 'corrupt' must NOT match as group mean.
+
+        'mu', 'overall_mean' should match. 'mu_raw' also matches (it IS a
+        reparameterized mu), which is acceptable.
+        """
+        import arviz as az
+        import xarray as xr
+
+        rng = np.random.default_rng(42)
+        n_chains, n_draws = 4, 500
+        # False positives: should NOT be matched
+        momentum = rng.normal(0, 1, (n_chains, n_draws))
+        corrupt = rng.normal(0, 1, (n_chains, n_draws))
+        # True positives: should be matched
+        mu = rng.normal(7, 2, (n_chains, n_draws))
+        overall_mean = rng.normal(7, 2, (n_chains, n_draws))
+        # Array-valued for school effects
+        theta = rng.normal(5, 3, (n_chains, n_draws, 8))
+
+        posterior = xr.Dataset(
+            {
+                "momentum": (["chain", "draw"], momentum),
+                "corrupt": (["chain", "draw"], corrupt),
+                "mu": (["chain", "draw"], mu),
+                "overall_mean": (["chain", "draw"], overall_mean),
+                "theta": (["chain", "draw", "school"], theta),
+            },
+            coords={
+                "chain": range(n_chains),
+                "draw": range(n_draws),
+                "school": range(8),
+            },
+        )
+        sample_stats = xr.Dataset(
+            {"diverging": (["chain", "draw"],
+                           np.zeros((n_chains, n_draws), dtype=bool))},
+            coords={"chain": range(n_chains), "draw": range(n_draws)},
+        )
+        idata = az.InferenceData(posterior=posterior, sample_stats=sample_stats)
+        idata.to_netcdf(str(run_dir / "results.nc"))
+
+        score, details = score_parameter_recovery(run_dir, "T1_hierarchical")
+        mu_candidates = details.get("mu_candidates", [])
+        # "mu" and "overall_mean" should be found
+        assert "mu" in mu_candidates
+        assert "overall_mean" in mu_candidates
+        # False positives should NOT be found
+        assert "momentum" not in mu_candidates
+        assert "corrupt" not in mu_candidates
+
+    def test_t2_false_positive_cutpoint_names(self, run_dir):
+        """T2: 'execute', 'depth' must NOT match as cutpoints or depression vars.
+
+        'cutpoints' and 'hlthdep_coeff' should match.
+        """
+        import arviz as az
+        import xarray as xr
+
+        rng = np.random.default_rng(42)
+        n_chains, n_draws = 4, 500
+        # False positives
+        execute = rng.normal(0, 1, (n_chains, n_draws))
+        depth = rng.normal(0, 1, (n_chains, n_draws))
+        # True positives
+        cutpoints = rng.normal([-1, 0, 1], 0.1, (n_chains, n_draws, 3))
+        hlthdep_coeff = rng.normal(-0.5, 0.1, (n_chains, n_draws))
+
+        posterior = xr.Dataset(
+            {
+                "execute": (["chain", "draw"], execute),
+                "depth": (["chain", "draw"], depth),
+                "cutpoints": (["chain", "draw", "cutpoint_dim"], cutpoints),
+                "hlthdep_coeff": (["chain", "draw"], hlthdep_coeff),
+            },
+            coords={
+                "chain": range(n_chains),
+                "draw": range(n_draws),
+                "cutpoint_dim": range(3),
+            },
+        )
+        sample_stats = xr.Dataset(
+            {"diverging": (["chain", "draw"],
+                           np.zeros((n_chains, n_draws), dtype=bool))},
+            coords={"chain": range(n_chains), "draw": range(n_draws)},
+        )
+        idata = az.InferenceData(posterior=posterior, sample_stats=sample_stats)
+        idata.to_netcdf(str(run_dir / "results.nc"))
+
+        score, details = score_parameter_recovery(run_dir, "T2_ordinal")
+        # "cutpoints" should be found as a cutpoint variable
+        cut_vars = details.get("cutpoint_vars", [])
+        assert "cutpoints" in cut_vars
+        assert "execute" not in cut_vars
+        assert "depth" not in cut_vars
+        # "hlthdep_coeff" should be found as a depression variable
+        assert "depression_coeff" in details
+        # "depth" should NOT have been matched as depression var
+        # (depression_coeff comes from hlthdep_coeff, not depth)
+        assert details["depression_coeff"] < 0
+
+    def test_t5_false_positive_coeff_names(self, run_dir):
+        """T5: 'embed' must NOT match as coefficient. 'beta' should match."""
+        import arviz as az
+        import xarray as xr
+
+        rng = np.random.default_rng(42)
+        n_chains, n_draws = 4, 500
+        # False positive: should NOT be matched
+        embed = rng.normal(0, 1, (n_chains, n_draws))
+        # True positive with shrinkage pattern
+        betas = np.zeros((n_chains, n_draws, 8))
+        for c in range(n_chains):
+            betas[c, :, 0] = rng.normal(0.5, 0.1, n_draws)   # important
+            betas[c, :, 1] = rng.normal(-0.3, 0.08, n_draws)  # important
+            for j in range(2, 8):
+                betas[c, :, j] = rng.normal(0.0, 0.02, n_draws)  # shrunk
+        # "beta_log_raw_offset" should still match (contains "beta")
+        beta_log_raw_offset = rng.normal(0, 0.01, (n_chains, n_draws))
+
+        posterior = xr.Dataset(
+            {
+                "embed": (["chain", "draw"], embed),
+                "beta": (["chain", "draw", "predictor"], betas),
+                "beta_log_raw_offset": (["chain", "draw"], beta_log_raw_offset),
+            },
+            coords={
+                "chain": range(n_chains),
+                "draw": range(n_draws),
+                "predictor": range(8),
+            },
+        )
+        sample_stats = xr.Dataset(
+            {"diverging": (["chain", "draw"],
+                           np.zeros((n_chains, n_draws), dtype=bool))},
+            coords={"chain": range(n_chains), "draw": range(n_draws)},
+        )
+        idata = az.InferenceData(posterior=posterior, sample_stats=sample_stats)
+        idata.to_netcdf(str(run_dir / "results.nc"))
+
+        score, details = score_parameter_recovery(run_dir, "T5_horseshoe")
+        coeff_candidates = details.get("coeff_candidates", [])
+        assert "beta" in coeff_candidates
+        assert "beta_log_raw_offset" in coeff_candidates
+        assert "embed" not in coeff_candidates
+        assert details.get("shrinkage_pattern") == "good"
+
+    def test_parameter_recovery_no_matching_vars(self, run_dir):
+        """T1: variables named 'x1', 'x2' (no standard names) -> low score, no crash."""
+        rng = np.random.default_rng(42)
+        n_chains, n_draws = 4, 500
+        x1 = rng.normal(0, 1, (n_chains, n_draws))
+        x2 = rng.normal(0, 1, (n_chains, n_draws))
+        _create_idata_with_values(run_dir, {"x1": x1, "x2": x2},
+                                   n_chains=n_chains, n_draws=n_draws)
+
+        score, details = score_parameter_recovery(run_dir, "T1_hierarchical")
+        # Should not crash, score should be low (only finite check = 1)
+        assert 0 <= score <= 1
+
+
+class TestSingleChainConvergence:
+    def test_single_chain_capped_at_3(self, run_dir):
+        """Single chain (n_chains=1) should cap convergence score at 3."""
+        _create_idata(run_dir, n_chains=1, n_draws=1000, n_divergent=0)
+        score, details = score_convergence(run_dir)
+        assert score <= 3
+        assert "only 1 chain" in details.get("reason", "")
+
+
+class TestExtractJudgeJson:
+    def test_all_strategies_fail(self):
+        """Input with no JSON at all returns None."""
+        result = _extract_judge_json("no json here at all")
+        assert result is None

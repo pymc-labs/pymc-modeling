@@ -12,6 +12,7 @@ Subcommands:
 import argparse
 import json
 import logging
+import shutil
 import sys
 import time
 from pathlib import Path
@@ -301,6 +302,81 @@ def cmd_status(args):
                 )
 
 
+def cmd_clean(args):
+    """Delete run and/or score data for specific tasks/conditions/reps."""
+    config = load_tasks()
+    task_ids = list(config["tasks"].keys()) if args.all else [args.task]
+    conditions = ["no_skill", "with_skill"]
+
+    if not args.all and args.task not in config["tasks"]:
+        print(f"Unknown task: {args.task}")
+        return 1
+
+    deleted = 0
+    for task_id in task_ids:
+        for condition in conditions:
+            for rep in range(args.reps):
+                run_dir = get_run_dir(task_id, condition, rep)
+                score_file = RESULTS_DIR / "scores" / f"{task_id}_{condition}_rep{rep}.json"
+
+                if run_dir.exists():
+                    shutil.rmtree(run_dir)
+                    print(f"  Deleted run: {run_dir.name}")
+                    deleted += 1
+
+                if score_file.exists():
+                    score_file.unlink()
+                    print(f"  Deleted score: {score_file.name}")
+
+    print(f"\nDeleted {deleted} run directories")
+    return 0
+
+
+def cmd_inspect(args):
+    """Show detailed scores for a single run."""
+    score_file = RESULTS_DIR / "scores" / f"{args.task}_{args.condition}_rep{args.rep}.json"
+
+    if not score_file.exists():
+        print(f"No score found: {score_file.name}")
+        print("Run scoring first: python -m src.cli score --all")
+        return 1
+
+    data = json.loads(score_file.read_text())
+
+    print(f"{'=' * 60}")
+    print(f"Run: {data['task_id']} {data['condition']} rep{data['rep']}")
+    print(f"{'=' * 60}")
+    print()
+
+    # Score summary
+    criteria = [
+        ("Model produced", data["model_produced"]),
+        ("Convergence", data["convergence"]),
+        ("Model appropriateness", data["model_appropriateness"]),
+        ("Best practices", data["best_practices"]),
+        ("Workflow", data.get("workflow", 0)),
+        ("Parameter recovery", data.get("parameter_recovery", 0)),
+    ]
+
+    for name, score in criteria:
+        bar = "\u2588" * score + "\u2591" * (5 - score)
+        print(f"  {name:<25} {bar} {score}/5")
+
+    print(f"  {'\u2500' * 40}")
+    print(f"  {'Total':<25} {' ' * 5} {data['total']}/30")
+    print(f"  {'Passed':<25} {' ' * 5} {'Yes' if data.get('passed') else 'No'}")
+    print(f"  {'Retries':<25} {' ' * 5} {data.get('retries', 0)}")
+
+    # Details
+    details = data.get("details", {})
+    if details and args.verbose_inspect:
+        print()
+        print("Details:")
+        print(json.dumps(details, indent=2, default=str))
+
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="PyMC Skill Benchmark",
@@ -341,6 +417,20 @@ def main():
     p_status = sub.add_parser("status", help="Show run/score status")
     p_status.add_argument("--reps", type=int, default=5, help="Number of reps to display")
 
+    # clean
+    p_clean = sub.add_parser("clean", help="Delete run/score data")
+    p_clean.add_argument("--all", action="store_true", help="Clean all tasks")
+    p_clean.add_argument("--task", default="T1_hierarchical", help="Task ID to clean")
+    p_clean.add_argument("--reps", type=int, default=5, help="Number of reps to clean")
+
+    # inspect
+    p_inspect = sub.add_parser("inspect", help="Show detailed scores for a run")
+    p_inspect.add_argument("--task", default="T1_hierarchical", help="Task ID")
+    p_inspect.add_argument("--condition", default="no_skill", help="Condition")
+    p_inspect.add_argument("--rep", type=int, default=0, help="Replication number")
+    p_inspect.add_argument("-v", "--verbose", action="store_true", dest="verbose_inspect",
+                           help="Show full score details")
+
     args = parser.parse_args()
     setup_logging(args.verbose)
 
@@ -351,6 +441,8 @@ def main():
         "validate": cmd_validate,
         "list-tasks": cmd_list_tasks,
         "status": cmd_status,
+        "clean": cmd_clean,
+        "inspect": cmd_inspect,
     }
 
     sys.exit(commands[args.command](args))

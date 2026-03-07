@@ -1,0 +1,16 @@
+[workspace]
+name = "pymc-modeling-tests"
+channels = ["conda-forge", "pypi"]
+platforms = ["linux-64", "osx-arm64"]
+
+[dependencies]
+python = ">=3.11,<3.14"
+jq = "*"
+
+[pypi-dependencies]
+pytest = ">=8.0"
+pyyaml = ">=6.0"
+mcp = ">=1.0"
+
+[tasks]
+test = "pytest -v"
