@@ -34,6 +34,22 @@ JUDGE_MODEL = "haiku"
 JUDGE_BUDGET = "0.50"
 JUDGE_TIMEOUT = 60
 
+# Regex patterns for matching posterior variable names in parameter recovery.
+# Word-boundary style patterns avoid false positives (e.g., "mu" won't match "momentum").
+_MU_PAT = re.compile(r'(?:^|_)mu(?:$|_|\d)|mean|overall|group', re.IGNORECASE)
+_CUT_PAT = re.compile(r'cutpoint|threshold|(?:^|_)cut(?:$|_|\d)', re.IGNORECASE)
+_DEP_PAT = re.compile(r'hlthdep|depression|(?:^|_)dep(?:$|_|\d)', re.IGNORECASE)
+_VOL_PAT = re.compile(
+    r'vol|log.?vol|sigma_h|(?:^|_)h(?:$|_|\d)|latent|innovation',
+    re.IGNORECASE,
+)
+_NU_PAT = re.compile(r'(?:^|_)nu(?:$|_|\d)|(?:^|_)df(?:$|_|\d)', re.IGNORECASE)
+_WT_PAT = re.compile(
+    r'weight|(?:^|_)w(?:$|_|\d)|(?:^|_)pi(?:$|_|\d)|mix.?prob',
+    re.IGNORECASE,
+)
+_COEFF_PAT = re.compile(r'beta|coeff|(?:^|_)b(?:$|_|\d)', re.IGNORECASE)
+
 
 @dataclass
 class ScoreResult:
@@ -567,8 +583,7 @@ def _recovery_T1_hierarchical(idata, details: dict) -> tuple[int, dict]:
     posterior = idata.posterior
 
     # Look for group-level mean (various naming conventions)
-    mu_names = [v for v in posterior.data_vars
-                if any(k in v.lower() for k in ["mu", "mean", "overall", "group"])]
+    mu_names = [v for v in posterior.data_vars if _MU_PAT.search(v)]
     details["mu_candidates"] = mu_names
 
     if mu_names:
@@ -616,8 +631,7 @@ def _recovery_T2_ordinal(idata, details: dict) -> tuple[int, dict]:
     posterior = idata.posterior
 
     # Look for cutpoints
-    cut_names = [v for v in posterior.data_vars
-                 if any(k in v.lower() for k in ["cutpoint", "threshold", "cut"])]
+    cut_names = [v for v in posterior.data_vars if _CUT_PAT.search(v)]
     details["cutpoint_vars"] = cut_names
 
     if cut_names:
@@ -635,8 +649,7 @@ def _recovery_T2_ordinal(idata, details: dict) -> tuple[int, dict]:
             score += 1
 
     # Check that depression coefficient is negative (depression -> less satisfaction)
-    dep_names = [v for v in posterior.data_vars
-                 if any(k in v.lower() for k in ["dep", "hlthdep", "depression"])]
+    dep_names = [v for v in posterior.data_vars if _DEP_PAT.search(v)]
     if dep_names:
         dep_mean = float(np.mean(posterior[dep_names[0]].values))
         details["depression_coeff"] = round(dep_mean, 3)
@@ -660,18 +673,11 @@ def _recovery_T3_stochastic_volatility(idata, details: dict) -> tuple[int, dict]
     posterior = idata.posterior
 
     # Look for volatility-related variables.
-    # Use word-boundary regex for short names like "h" to avoid matching
-    # unrelated variables (e.g., "theta", "alpha").
-    _vol_pat = re.compile(
-        r'vol|log.?vol|sigma_h|(?:^|_)h(?:$|_|\d)|latent|innovation',
-        re.IGNORECASE,
-    )
-    vol_names = [v for v in posterior.data_vars if _vol_pat.search(v)]
+    vol_names = [v for v in posterior.data_vars if _VOL_PAT.search(v)]
     details["volatility_vars"] = vol_names[:5]
 
     # Check for nu (degrees of freedom) — should be > 2 and < 30
-    _nu_pat = re.compile(r'(?:^|_)nu(?:$|_|\d)|(?:^|_)df(?:$|_|\d)', re.IGNORECASE)
-    nu_names = [v for v in posterior.data_vars if _nu_pat.search(v)]
+    nu_names = [v for v in posterior.data_vars if _NU_PAT.search(v)]
     if nu_names:
         nu_mean = float(np.mean(posterior[nu_names[0]].values))
         details["nu_mean"] = round(nu_mean, 2)
@@ -753,13 +759,7 @@ def _recovery_T4_mixture(idata, details: dict) -> tuple[int, dict]:
                 break
 
     # Check weights sum to ~1 and are not degenerate.
-    # Use word-boundary regex for short names like "w" and "pi" to avoid
-    # matching unrelated variables (e.g., "mu_raw", "spike").
-    _wt_pat = re.compile(
-        r'weight|(?:^|_)w(?:$|_|\d)|(?:^|_)pi(?:$|_|\d)|mix.?prob',
-        re.IGNORECASE,
-    )
-    weight_names = [v for v in posterior.data_vars if _wt_pat.search(v)]
+    weight_names = [v for v in posterior.data_vars if _WT_PAT.search(v)]
     if weight_names:
         for name in weight_names:
             w_vals = np.mean(posterior[name].values, axis=(0, 1))
@@ -784,8 +784,7 @@ def _recovery_T5_horseshoe(idata, details: dict) -> tuple[int, dict]:
     posterior = idata.posterior
 
     # Find coefficient variables (beta, coeff, etc.)
-    coeff_names = [v for v in posterior.data_vars
-                   if any(k in v.lower() for k in ["beta", "coeff", "b_"])]
+    coeff_names = [v for v in posterior.data_vars if _COEFF_PAT.search(v)]
     details["coeff_candidates"] = coeff_names
 
     if coeff_names:

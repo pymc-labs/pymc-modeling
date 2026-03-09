@@ -6,7 +6,7 @@ preamble: |
   You are working in a directory that contains data files in data/.
   Write a Python script called model.py that builds a Bayesian model using PyMC.
   Run the script yourself. If it fails, fix it and try once more.
-  Save the InferenceData to results.nc after sampling.
+  Save the InferenceData to results.nc immediately after sampling, before any post-processing or diagnostics.
   Available packages: PyMC, ArviZ, nutpie, NumPy, SciPy, matplotlib, polars.
 
 tasks:

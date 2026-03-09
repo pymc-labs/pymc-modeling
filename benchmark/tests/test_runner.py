@@ -259,3 +259,47 @@ class TestIsCorruptedModel:
         """Non-existent file returns False (not corrupted)."""
         model = tmp_path / "model.py"
         assert not is_corrupted_model(model)
+
+    def test_empty_file(self, tmp_path):
+        """Empty file is not corrupted."""
+        model = tmp_path / "model.py"
+        model.write_text("")
+        assert not is_corrupted_model(model)
+
+    def test_copyright_deep_in_file(self, tmp_path):
+        """Copyright beyond first 200 bytes is not detected."""
+        model = tmp_path / "model.py"
+        # 200+ bytes of normal code, then a copyright line
+        model.write_text("import pymc as pm\n" * 15 + "# Copyright 2024\n")
+        assert not is_corrupted_model(model)
+
+
+class TestParseResponseEdgeCases:
+    def test_empty_input(self):
+        parsed = _parse_response("")
+        assert "error" in parsed
+
+    def test_only_assistant_messages(self):
+        """No result line — should return error."""
+        lines = [
+            json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "hi"}]}}),
+        ]
+        parsed = _parse_response("\n".join(lines))
+        assert "error" in parsed
+        assert len(parsed["turns"]) == 1
+
+    def test_system_messages_ignored(self):
+        """System messages should be silently skipped."""
+        lines = [
+            json.dumps({"type": "system", "subtype": "init", "data": {}}),
+            json.dumps({"type": "system", "subtype": "hook", "data": {"hook": "test"}}),
+            json.dumps({
+                "type": "result",
+                "usage": {"input_tokens": 100, "output_tokens": 200},
+                "result": "done",
+                "num_turns": 1,
+            }),
+        ]
+        parsed = _parse_response("\n".join(lines))
+        assert parsed["input_tokens"] == 100
+        assert len(parsed["turns"]) == 0

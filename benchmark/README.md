@@ -27,9 +27,9 @@ Every task targets something the skill explicitly teaches. No basic models — C
 
 Prompts describe the *statistical problem* only — they never mention PyMC-specific patterns. The skill's value is knowing which PyMC tools and patterns to use.
 
-### Scoring Rubric (0-20)
+### Scoring Rubric (0-30)
 
-Each run is scored on four criteria, each worth 0-5 points:
+Each run is scored on six criteria, each worth 0-5 points:
 
 | Criterion | Method | What it measures |
 |-----------|--------|------------------|
@@ -37,6 +37,10 @@ Each run is scored on four criteria, each worth 0-5 points:
 | **Convergence** | Automated | R-hat, ESS, divergence count — computed directly from the `.nc` file |
 | **Model appropriateness** | LLM judge (Haiku) | Is the model structure correct for this problem? Task-specific rubric |
 | **Best practices** | Automated (regex) | coords/dims, nutpie, random_seed, log_likelihood, task-specific patterns |
+| **Workflow** | Automated (regex) | Prior/posterior predictive checks, convergence diagnostics, early save, model comparison |
+| **Parameter recovery** | Automated | Posterior estimates cover known ground truth or plausible ranges |
+
+A run **passes** the hard gate if: model_produced >= 4, convergence >= 3, and posterior estimates are finite and non-degenerate. Retries (error-fix cycles) are tracked as informational metadata.
 
 The LLM judge uses Haiku with a structured rubric per task. If the judge fails (timeout, API error), scoring falls back to regex-based pattern matching.
 
@@ -91,7 +95,7 @@ Checks performed:
 - No `Skill` tool calls in either condition
 - `model.py` produced (>100 bytes)
 - `results.nc` loads with a posterior group
-- Scorer returns scores for all 4 criteria
+- Scorer returns scores for all 6 criteria
 - Working directory has no `.claude-plugin/` or `hooks/` contamination
 
 ### Step 2: Full Suite
@@ -161,7 +165,7 @@ benchmark/
 │   └── prepare_data.py       # Dataset cleaning and subsampling
 ├── src/
 │   ├── runner.py             # Launches Claude, manages working dirs, caching
-│   ├── scorer.py             # 4-criterion rubric with LLM judge
+│   ├── scorer.py             # 6-criterion rubric with LLM judge
 │   ├── analysis.py           # Cohen's d, Polars reports
 │   └── cli.py                # CLI entry point (run, score, analyze, validate)
 ├── data/
