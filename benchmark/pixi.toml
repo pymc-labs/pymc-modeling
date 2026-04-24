@@ -8,16 +8,21 @@ python = ">=3.11,<3.14"
 numpy = ">=1.24"
 polars = ">=1.0"
 pyyaml = ">=6.0"
-pymc = ">=5.10"
 arviz = ">=1.0"
 arviz-base = "*"
 arviz-stats = "*"
 h5netcdf = "*"
-nutpie = ">=0.12"
 scipy = ">=1.10"
 matplotlib = ">=3.7"
 pytest = ">=9.0"
-numba = ">=0.63.1,<0.64"
+
+# PyMC 6 / PyTensor 3 from upstream dev branches (not yet on conda-forge).
+# pymc's requirements.txt on the v6 branch already pins pytensor to the v3
+# git URL, so pytensor is pulled in transitively. nutpie comes from pypi
+# because conda-forge nutpie pins pytensor<3.
+[pypi-dependencies]
+pymc = { git = "https://github.com/pymc-devs/pymc.git", branch = "v6" }
+nutpie = "*"
 
 [tasks]
 # Data preparation
