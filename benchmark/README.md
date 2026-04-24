@@ -33,7 +33,7 @@ Each run is scored on six criteria, each worth 0-5 points:
 
 | Criterion | Method | What it measures |
 |-----------|--------|------------------|
-| **Model produced** | Automated | Does `results.nc` exist with a posterior group? How complete is the InferenceData? |
+| **Model produced** | Automated | Does `results.nc` exist with a posterior group? How complete is the DataTree? |
 | **Convergence** | Automated | R-hat, ESS, divergence count — computed directly from the `.nc` file |
 | **Model appropriateness** | LLM judge (Haiku) | Is the model structure correct for this problem? Task-specific rubric |
 | **Best practices** | Automated (regex) | coords/dims, nutpie, random_seed, log_likelihood, task-specific patterns |
@@ -180,7 +180,7 @@ benchmark/
 │   └── analysis/             # Aggregate report and CSVs
 └── tests/
     ├── test_runner.py        # Command construction, caching, isolation checks
-    ├── test_scorer.py        # Each criterion with synthetic InferenceData
+    ├── test_scorer.py        # Each criterion with synthetic DataTree
     └── test_analysis.py      # Cohen's d, effect sizes, report generation
 ```
 

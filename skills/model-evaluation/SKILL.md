@@ -10,7 +10,7 @@ description: >
 
 # Model Evaluation and Comparison (ArviZ 1.0)
 
-CRITICAL: ArviZ 1.0 replaces InferenceData with xarray.DataTree. WAIC is removed entirely — use PSIS-LOO-CV exclusively. Default credible interval is 0.89 ETI (not 0.94 HDI).
+CRITICAL: ArviZ 1.0 replaces InferenceData with xarray.DataTree. `az.waic` is removed entirely — use PSIS-LOO-CV exclusively. Default credible interval is 0.89 ETI (not 0.94 HDI), controlled via `ci_prob=` and `ci_kind=` (replaces the old `hdi_prob=`).
 
 For model building context, prior selection, and convergence diagnostics, see the [pymc-modeling skill](../pymc-modeling/SKILL.md).
 
@@ -20,11 +20,15 @@ Leave-one-out cross-validation via Pareto-smoothed importance sampling (PSIS).
 
 ```python
 import arviz as az
+import arviz_stats  # registers the .azstats accessor
 
 # dt is a DataTree from pm.sample()
 loo_result = az.loo(dt)
 print(loo_result)
 # Returns: ELPDData with elpd_loo, se, p_loo, n_data_points, pareto_k
+
+# Equivalent via the xarray accessor (DataArray / Dataset / DataTree all supported):
+loo_result = dt.azstats.loo()
 ```
 
 ### Pareto k Diagnostics
@@ -89,11 +93,12 @@ Compare multiple models on predictive accuracy:
 # dt1, dt2, dt3 are DataTree objects from pm.sample()
 comparison = az.compare(
     {"linear": dt1, "quadratic": dt2, "spline": dt3},
-    ic="loo",           # Only LOO is supported in ArviZ 1.0
     scale="log",        # log scale (default) or deviance
 )
 print(comparison)
 ```
+
+Note: `az.compare` in ArviZ 1.0 only supports LOO, so the `ic=` argument has been dropped.
 
 ### Interpreting the Comparison Table
 
@@ -208,20 +213,36 @@ This is a powerful diagnostic that LOO uniquely provides — it checks calibrati
 
 ### loo_expectations()
 
-Compute LOO-weighted expectations of arbitrary functions:
+Compute LOO-weighted posterior expectations (mean, variance, quantile) for each observation. Requires both `posterior_predictive` and `log_likelihood` groups on the DataTree:
 
 ```python
-# LOO estimate of posterior mean
-loo_mean = az.loo_expectations(dt, func=np.mean)
+# LOO-weighted posterior predictive mean for each observation
+loo_mean = az.loo_expectations(dt, kind="mean")
+loo_var = az.loo_expectations(dt, kind="var")
+loo_q = az.loo_expectations(dt, kind="quantile", probs=[0.055, 0.945])
 ```
 
 ### loo_metrics()
 
-Compute common predictive metrics using LOO:
+Compute common LOO-based predictive metrics (RMSE, MAE, etc.) from `posterior_predictive` and `log_likelihood`:
 
 ```python
-metrics = az.loo_metrics(dt)
-# Returns RMSE, MAE, and other metrics computed via LOO
+metrics = az.loo_metrics(dt, kind="rmse")
+```
+
+### .azstats xarray accessor
+
+`import arviz_stats` registers an `.azstats` accessor on `DataArray`, `Dataset`, and `DataTree`. This gives a fluent xarray-native interface alongside the top-level `az.*` functions (which remain available after `import arviz as az`):
+
+```python
+import arviz_stats  # registers accessor; required even if you already imported arviz
+
+dt.azstats.loo()                       # same as az.loo(dt)
+dt["posterior"].azstats.rhat()         # on a Dataset
+dt["posterior"].azstats.ess()
+dt["posterior"].azstats.summary()
+dt["posterior"].azstats.hdi()
+dt["posterior"].azstats.eti()
 ```
 
 ### loo_r2()

@@ -23,7 +23,7 @@ import numpy as np
 # [Insert the model definition code here]
 
 with model:
-    prior_pred = pm.sample_prior_predictive(samples=500, random_seed=42)
+    prior_pred = pm.sample_prior_predictive(draws=500, random_seed=42)
 ```
 
 4. Create prior predictive plots:

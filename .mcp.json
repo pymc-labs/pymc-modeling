@@ -1,9 +1,0 @@
-{
-  "mcpServers": {
-    "pymc-docs": {
-      "command": "pixi",
-      "args": ["run", "--manifest-path", "${CLAUDE_PLUGIN_ROOT}/mcp-server/pixi.toml", "python", "-m", "pymc_docs_server"],
-      "cwd": "${CLAUDE_PLUGIN_ROOT}/mcp-server"
-    }
-  }
-}

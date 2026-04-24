@@ -166,7 +166,7 @@ Or manually:
 
 ```python
 # Extract posterior coefficients
-w_samples = dt["posterior"].dataset["w"].values  # (chain, draw, n_basis)
+w_samples = dt["posterior"]["w"].values  # (chain, draw, n_basis)
 
 # Predict: (chain, draw, n_basis) @ (n_basis, n_new) -> (chain, draw, n_new)
 mu_pred = np.einsum("cdj,nj->cdn", w_samples, basis_new)

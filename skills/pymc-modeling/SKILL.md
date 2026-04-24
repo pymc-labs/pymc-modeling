@@ -1,17 +1,20 @@
 ---
 name: pymc-modeling
 description: >
-  Bayesian statistical modeling with PyMC v5+. Use when building probabilistic models,
-  specifying priors, running MCMC inference, diagnosing convergence, or comparing models.
-  Covers PyMC, ArviZ, pymc-bart, pymc-extras, nutpie, and JAX/NumPyro backends. Triggers
-  on tasks involving: Bayesian inference, posterior sampling, hierarchical/multilevel models,
-  GLMs, time series, Gaussian processes, BART, mixture models, prior/posterior predictive
-  checks, MCMC diagnostics, LOO-CV, model comparison, or causal inference with do/observe.
+  Bayesian statistical modeling with PyMC 6+, PyTensor 3+, and ArviZ 1.0+. Use when building
+  probabilistic models, specifying priors, running MCMC inference, diagnosing convergence, or
+  comparing models. Covers PyMC, ArviZ (DataTree API), pymc-bart, pymc-extras, nutpie, and
+  JAX/NumPyro backends. Triggers on tasks involving: Bayesian inference, posterior sampling,
+  hierarchical/multilevel models, GLMs, time series, Gaussian processes, BART, mixture models,
+  prior/posterior predictive checks, MCMC diagnostics, LOO-CV, model comparison, or causal
+  inference with do/observe.
 ---
 
 # PyMC Modeling
 
-Modern Bayesian modeling with PyMC v5+. Key defaults: nutpie sampler (2-5x faster), non-centered parameterization for hierarchical models, HSGP over exact GPs, coords/dims for readable DataTree (ArviZ 1.0), and save-early workflow to prevent data loss from late crashes.
+Modern Bayesian modeling with PyMC 6+ on the ArviZ 1.0 / PyTensor 3 stack. Key defaults: nutpie sampler (2-5x faster), non-centered parameterization for hierarchical models, HSGP over exact GPs, coords/dims for readable DataTree output, and save-early workflow to prevent data loss from late crashes.
+
+`pm.sample(...)` returns an `xarray.DataTree` — the `idata` name is kept by convention, but it is a DataTree, not the old `InferenceData`. Access groups by bracket: `idata["posterior"]`, `idata["sample_stats"]`, etc.
 
 **Modeling strategy**: Build models iteratively — start simple, check prior
 predictions, fit and diagnose, check posterior predictions, expand one piece at
@@ -43,7 +46,7 @@ with pm.Model(coords=coords) as model:
 
 ### Coords and Dims
 
-Use coords/dims for interpretable InferenceData when model has meaningful structure:
+Use coords/dims for an interpretable DataTree when the model has meaningful structure:
 
 ```python
 coords = {
@@ -82,11 +85,13 @@ with model:
 idata.to_netcdf("results.nc")  # Save immediately after sampling
 ```
 
-**Important**: nutpie does not store log_likelihood automatically (it silently ignores `idata_kwargs={"log_likelihood": True}`). If you need LOO-CV or model comparison, compute it after sampling:
+**Important**: In PyMC 6, `pm.sample` no longer computes the log-likelihood automatically — passing `compute_log_likelihood=True` emits a `FutureWarning`. Compute it explicitly after sampling whenever you plan to run LOO-CV, model comparison, or loo-pit checks:
 
 ```python
 pm.compute_log_likelihood(idata, model=model)
 ```
+
+This applies to every sampler (nutpie, default NUTS, NumPyro) — not just nutpie.
 
 ### When to Use PyMC's Default NUTS Instead
 
@@ -125,12 +130,12 @@ Follow this systematic workflow after every sampling run:
 
 ```python
 # 1. Check for divergences (must be 0 or near 0)
-# In ArviZ 1.0, idata is a DataTree; access groups via dict syntax
-n_div = idata["sample_stats"].dataset["diverging"].sum().item()
+# idata is an xarray.DataTree; path-access gets a DataArray
+n_div = idata["sample_stats"]["diverging"].sum().item()
 print(f"Divergences: {n_div}")
 
 # 2. Summary with convergence diagnostics
-# Note: az.summary default CI is now 0.89 ETI (not 0.94 HDI) in ArviZ 1.0
+# Default CI is 0.89 ETI (equal-tailed) — bounds labelled eti_5.5% / eti_94.5%
 summary = az.summary(idata, var_names=["~offset"])  # exclude auxiliary
 print(summary[["mean", "sd", "eti_5.5%", "eti_94.5%", "ess_bulk", "ess_tail", "r_hat"]])
 
@@ -201,7 +206,7 @@ with model:
     prior_pred = pm.sample_prior_predictive(draws=500)
 
 az.plot_ppc(prior_pred, group="prior", kind="cumulative")
-prior_y = prior_pred.prior_predictive["y"].values.flatten()
+prior_y = prior_pred["prior_predictive"]["y"].values.flatten()
 print(f"Prior predictive range: [{prior_y.min():.1f}, {prior_y.max():.1f}]")
 ```
 
@@ -252,20 +257,21 @@ print(f"ELPD: {loo.elpd_loo:.1f} ± {loo.se:.1f}")
 
 # Check Pareto k values (must be < 0.7 for reliable LOO)
 print(f"Bad k (>0.7): {(loo.pareto_k > 0.7).sum().item()}")
-az.plot_khat(idata)
+az.plot_khat(loo)
 ```
 
 ### Comparing Models
 
 ```python
-# If using nutpie, compute log-likelihood first (nutpie doesn't store it automatically)
+# PyMC 6 requires an explicit log-likelihood compute before LOO
 pm.compute_log_likelihood(idata_a, model=model_a)
 pm.compute_log_likelihood(idata_b, model=model_b)
 
+# ArviZ 1.0 — only loo is supported (waic was removed)
 comparison = az.compare({
     "model_a": idata_a,
     "model_b": idata_b,
-}, ic="loo")
+})
 
 print(comparison[["rank", "elpd_loo", "elpd_diff", "weight"]])
 az.plot_compare(comparison)
@@ -286,7 +292,7 @@ See [references/workflow.md](references/workflow.md) for the full iterative work
 
 ### DataTree Persistence
 
-In ArviZ 1.0, `pm.sample()` returns a `DataTree` (replaces `InferenceData`). The variable name `idata` is kept by convention.
+`pm.sample()` returns an `xarray.DataTree`. Persist with NetCDF; the `idata` name is convention.
 
 ```python
 # Save to NetCDF (recommended format)
@@ -302,13 +308,15 @@ For compressed storage of large DataTree objects, see [references/workflow.md](r
 
 ```python
 with model:
-    idata = pm.sample(nuts_sampler="nutpie")  # idata is a DataTree in ArviZ 1.0
+    idata = pm.sample(nuts_sampler="nutpie")  # returns a DataTree
 idata.to_netcdf("results.nc")  # Save before any post-processing!
 
 with model:
-    idata.update(pm.sample_posterior_predictive(idata))
+    idata.update(pm.sample_posterior_predictive(idata))  # .update() merges the new group in place
 idata.to_netcdf("results.nc")  # Update with posterior predictive
 ```
+
+**Note**: Use `.update({...})` or direct assignment (`idata["posterior_predictive"] = ppd_ds`) to add groups.
 
 ## Prior Selection
 

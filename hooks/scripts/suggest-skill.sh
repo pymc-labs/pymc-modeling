@@ -32,6 +32,7 @@ pymc_keywords=(
   "logistic regression.*bayes" "poisson regression.*bayes"
   "censored" "truncated" "ordinal" "causal inference"
   "do.calculus" "pm\\.model" "pm\\.sample" "pm\\.normal"
+  "pull_back" "push_forward" "arviz_base" "arviz-stats"
 )
 
 for kw in "${pymc_keywords[@]}"; do
@@ -76,6 +77,7 @@ model_evaluation_keywords=(
   "cross-validation" "waic" "model averaging" "model weight"
   "az\\.compare" "az\\.loo" "pointwise.*loo" "loo.pit"
   "k.pareto" "pareto.k" "information criterion"
+  "loo_expectations" "loo_metrics" "azstats" "loo_r2"
 )
 
 for kw in "${model_evaluation_keywords[@]}"; do

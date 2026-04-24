@@ -140,6 +140,22 @@ if "log_likelihood" in dt.children:
 
 WAIC is removed in ArviZ 1.0. Use PSIS-LOO-CV exclusively for model comparison.
 
+## ArviZ 1.0 Stats Accessor and Predictive Metrics
+
+Importing `arviz_stats` registers a `.azstats` xarray accessor on DataArray, Dataset, and DataTree. This lets you compute diagnostics directly from posterior groups without routing through top-level `az.*` functions. Examples:
+
+```python
+import arviz_stats  # registers the .azstats accessor
+
+rhat_ds = dt["posterior"].azstats.rhat()   # Dataset of rhat values per variable
+ess_ds  = dt["posterior"].azstats.ess()    # Dataset of ESS values
+hdi_ds  = dt["posterior"].azstats.hdi(ci_prob=0.89)
+```
+
+For predictive metrics (point-wise and aggregate), ArviZ 1.0 adds `az.loo_expectations` and `az.loo_metrics`. Use these instead of hand-rolling leave-one-out predictive means, variances, or RMSE/MAE from the log-likelihood group.
+
+Also note that credible-interval conventions changed: the default is `ci_prob=0.89` with `ci_kind="eti"` (equal-tailed interval), and summary columns are `eti_5.5%` / `eti_94.5%`. Pass `ci_kind="hdi"` explicitly to preserve HDI behavior.
+
 ## Reference Skills
 
 Consult the `pymc-modeling` skill for model specification patterns and the `model-evaluation` skill for model comparison workflows.

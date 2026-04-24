@@ -95,7 +95,7 @@ Always validate the chosen prior by running prior predictive checks:
 
 ```python
 with model:
-    prior_pred = pm.sample_prior_predictive(samples=500)
+    prior_pred = pm.sample_prior_predictive(draws=500)
 
 # Visualize prior predictions
 import arviz as az

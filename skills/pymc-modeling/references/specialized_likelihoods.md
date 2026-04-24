@@ -437,7 +437,7 @@ with robust_model:
 comparison = az.compare({
     "normal": idata_normal,
     "robust": idata_robust,
-}, ic="loo")
+})
 ```
 
 ### Quantile Regression

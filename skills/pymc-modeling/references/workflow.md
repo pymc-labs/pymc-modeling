@@ -98,7 +98,7 @@ idata.to_netcdf(
     encoding={var: {"zlib": True, "complevel": 4}
               for group in ["posterior", "posterior_predictive"]
               if group in idata.children
-              for var in idata[group].dataset.data_vars}
+              for var in idata[group].ds.data_vars}
 )
 ```
 

@@ -287,9 +287,7 @@ mu = pm.math.clip(x, 0, np.inf)
 
 ```python
 # Softplus maps R -> R+ with smooth gradients
-from pytensor.tensor.nnet import softplus
-
-mu = softplus(x)  # log(1 + exp(x))
+mu = pm.math.softplus(x)  # log(1 + exp(x))
 ```
 
 **Solution 2: Use distributions with natural constraints**
@@ -618,7 +616,7 @@ with pm.Model() as correct:
 
 ### Variable Name Same as Dimension Label
 
-PyMC v5+ does not allow a variable to have the same name as its dimension label. This causes a `ValueError` at model creation.
+PyMC 6+ does not allow a variable to have the same name as its dimension label. This causes a `ValueError` at model creation.
 
 ```python
 # ERROR: Variable `cohort` has the same name as its dimension label
@@ -651,7 +649,7 @@ az.plot_ppc(idata_subset, kind="cumulative")
 
 ### pm.MutableData / pm.ConstantData Deprecation
 
-`pm.MutableData` and `pm.ConstantData` are deprecated in PyMC v5+. Use `pm.Data` instead, which is mutable by default.
+`pm.MutableData` and `pm.ConstantData` are removed in PyMC 6+. Use `pm.Data` instead, which is mutable by default.
 
 ```python
 # DEPRECATED

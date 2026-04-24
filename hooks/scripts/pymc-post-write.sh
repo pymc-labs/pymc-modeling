@@ -41,7 +41,7 @@ fi
 # Look for common likelihood distributions without observed= on the same line or next few characters
 if echo "$content" | grep -qE 'pm\.(Normal|Bernoulli|Poisson|Binomial|NegativeBinomial|StudentT|Cauchy|Exponential|Gamma|Beta|Categorical|Multinomial|Dirichlet|Uniform|LogNormal|HalfNormal|Wald|Weibull)\(' ; then
   # Check if any of these calls lack observed=
-  if echo "$content" | grep -PE 'pm\.(Normal|Bernoulli|Poisson|Binomial|NegativeBinomial|StudentT|Exponential|Gamma|Beta|Categorical|Multinomial|LogNormal|Wald|Weibull)\([^)]*\)' | grep -vqE 'observed\s*=' 2>/dev/null; then
+  if echo "$content" | grep -E 'pm\.(Normal|Bernoulli|Poisson|Binomial|NegativeBinomial|StudentT|Exponential|Gamma|Beta|Categorical|Multinomial|LogNormal|Wald|Weibull)\([^)]*\)' | grep -vqE 'observed\s*=' 2>/dev/null; then
     # Only warn if there's a pm.sample() call too (suggests this is a full model, not just priors)
     if echo "$content" | grep -qE 'pm\.sample\('; then
       warnings+=("Some distribution calls may be missing observed= argument. Verify that your likelihood term includes observed=data. Prior distributions do not need observed=.")
@@ -52,6 +52,39 @@ fi
 # Check for deprecated ArviZ 0.x idata.posterior access pattern
 if echo "$content" | grep -qE 'idata\.(posterior|prior|posterior_predictive|prior_predictive|observed_data|sample_stats|log_likelihood)\b'; then
   warnings+=("Detected idata.posterior-style access pattern. For ArviZ 1.0+, use dt[\"posterior\"] (bracket notation on DataTree) instead of attribute access on InferenceData.")
+fi
+
+# Check for pm.compile_pymc (renamed in PyMC 6)
+if echo "$content" | grep -qE 'pm\.compile_pymc\b'; then
+  warnings+=("pm.compile_pymc was renamed to pm.compile in PyMC 6. Update the call to pm.compile(...).")
+fi
+
+# Check for sample_prior_predictive(samples=...) which was renamed to draws= in PyMC 6.
+# Two-stage check because call arguments may be split across lines.
+if echo "$content" | grep -q 'sample_prior_predictive'; then
+  if echo "$content" | grep -qE '\bsamples\s*='; then
+    warnings+=("sample_prior_predictive now uses draws= instead of samples= in PyMC 6. Rename the samples= keyword argument to draws=.")
+  fi
+fi
+
+# Check for az.waic (deprecated in ArviZ 1.0)
+if echo "$content" | grep -qE 'az\.waic\('; then
+  warnings+=("az.waic is deprecated in ArviZ 1.0. Prefer az.loo for model comparison; use az.loo_metrics / az.loo_expectations for predictive metrics.")
+fi
+
+# Check for PyTensor test_value / compute_test_value (removed in PyTensor 3)
+if echo "$content" | grep -qE 'tag\.test_value|compute_test_value'; then
+  warnings+=("tag.test_value and compute_test_value were removed in PyTensor 3. Call the .eval() method on a symbolic variable with a point-dict (e.g. var.eval({x: x_val})) instead.")
+fi
+
+# Check for L_op / R_op method definitions (renamed in PyTensor 3)
+if echo "$content" | grep -qE '\bdef\s+(L_op|R_op)\b'; then
+  warnings+=("L_op and R_op were renamed in PyTensor 3. Use pull_back (replaces L_op) and push_forward (replaces R_op).")
+fi
+
+# Check for deprecated .add_groups( on InferenceData / DataTree
+if echo "$content" | grep -qE '\.add_groups\('; then
+  warnings+=(".add_groups() is deprecated. Use .update(...) or direct assignment (dt[\"group_name\"] = ds) instead.")
 fi
 
 # Remind about diagnostics after pm.sample()

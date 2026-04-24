@@ -66,7 +66,14 @@ ERROR_PATTERNS = [
     },
     {
         "pattern": "shape_mismatch",
-        "keywords": ["shape", "dimension", "mismatch", "broadcast", "ValueError", "shape mismatch"],
+        "keywords": [
+            "shape",
+            "dimension",
+            "mismatch",
+            "broadcast",
+            "ValueError",
+            "shape mismatch",
+        ],
         "title": "Shape/dimension mismatch errors",
         "fix": (
             "1. Use coords and dims consistently\n"
@@ -77,7 +84,12 @@ ERROR_PATTERNS = [
     },
     {
         "pattern": "sampling_error",
-        "keywords": ["SamplingError", "sampling error", "bad initial energy", "initial point"],
+        "keywords": [
+            "SamplingError",
+            "sampling error",
+            "bad initial energy",
+            "initial point",
+        ],
         "title": "SamplingError / bad initial energy",
         "fix": (
             "1. Check for invalid prior values (e.g., negative scale parameters)\n"
@@ -89,7 +101,13 @@ ERROR_PATTERNS = [
     },
     {
         "pattern": "nutpie_log_likelihood",
-        "keywords": ["nutpie", "log_likelihood", "loo", "waic", "compute_log_likelihood"],
+        "keywords": [
+            "nutpie",
+            "log_likelihood",
+            "loo",
+            "waic",
+            "compute_log_likelihood",
+        ],
         "title": "Missing log_likelihood with nutpie sampler",
         "fix": (
             "nutpie doesn't store log_likelihood automatically.\n"
@@ -100,7 +118,13 @@ ERROR_PATTERNS = [
     },
     {
         "pattern": "label_switching",
-        "keywords": ["label switching", "label swap", "mixture", "identifiability", "multimodal"],
+        "keywords": [
+            "label switching",
+            "label swap",
+            "mixture",
+            "identifiability",
+            "multimodal",
+        ],
         "title": "Label switching in mixture models",
         "fix": (
             "1. Apply ordered transform to component means:\n"
@@ -120,12 +144,19 @@ ERROR_PATTERNS = [
             "2. Use nutpie which is more memory-efficient: nuts_sampler='nutpie'\n"
             "3. For GPs, use HSGP approximation instead of full GP\n"
             "4. For large datasets, subsample or use minibatch approaches\n"
-            "5. Avoid storing unnecessary groups: idata.posterior only"
+            '5. Avoid storing unnecessary groups: idata["posterior"] only'
         ),
     },
     {
         "pattern": "dims_conflict",
-        "keywords": ["dims", "coords", "dimension", "conflict", "cutpoints", "already exists"],
+        "keywords": [
+            "dims",
+            "coords",
+            "dimension",
+            "conflict",
+            "cutpoints",
+            "already exists",
+        ],
         "title": "Dimension name conflicts",
         "fix": (
             "1. Don't use the same name for both a variable and a dimension\n"
@@ -137,26 +168,49 @@ ERROR_PATTERNS = [
     },
     {
         "pattern": "theano_pytensor",
-        "keywords": ["theano", "aesara", "pytensor", "import error", "module not found"],
+        "keywords": [
+            "theano",
+            "aesara",
+            "pytensor",
+            "import error",
+            "module not found",
+        ],
         "title": "Theano/Aesara/PyTensor import errors",
         "fix": (
-            "PyMC 5+ uses PyTensor (not Theano or Aesara).\n"
+            "PyMC 6+ uses PyTensor 3+ (not Theano or Aesara).\n"
             "Replace:\n"
             "  import theano.tensor as tt  ->  import pytensor.tensor as pt\n"
             "  import aesara.tensor as at  ->  import pytensor.tensor as pt\n"
-            "Math operations: pt.dot, pt.exp, pt.log, pt.switch, etc."
+            "Math operations: pt.dot, pt.exp, pt.log, pt.switch, etc.\n"
+            "PyTensor 3 removals to watch for: tag.test_value and "
+            "compute_test_value are gone (call the .eval method on a "
+            "symbolic variable with a point dict instead); Op.L_op and "
+            "Op.R_op were renamed to Op.pull_back and Op.push_forward."
         ),
     },
     {
         "pattern": "arviz_datatree",
-        "keywords": ["DataTree", "datatree", "ArviZ", "1.0", "groups", "xarray"],
-        "title": "ArviZ 1.0 DataTree changes",
+        "keywords": [
+            "DataTree",
+            "datatree",
+            "ArviZ",
+            "1.0",
+            "groups",
+            "xarray",
+            "InferenceData",
+        ],
+        "title": "ArviZ 1.0 DataTree migration",
         "fix": (
-            "ArviZ 1.0 uses xarray DataTree instead of InferenceData.\n"
-            "Most functions work the same, but access patterns change:\n"
-            "  idata.posterior  (still works)\n"
-            "  idata.groups()   (lists available groups)\n"
-            "New LOO API: az.loo_expectations, az.loo_metrics, az.loo_r2"
+            "ArviZ 1.0 removed InferenceData entirely; pm.sample() now returns xarray.DataTree.\n"
+            "Attribute access is gone — always use bracket access:\n"
+            '  dt["posterior"]       (was idata.posterior)\n'
+            '  dt["sample_stats"]    (was idata.sample_stats)\n'
+            "  dt.children.keys()     (was idata.groups())\n"
+            '  "posterior" in dt     (was hasattr(idata, "posterior"))\n'
+            'Default CI: ci_prob=0.89, ci_kind="eti" (was hdi_prob=0.94).\n'
+            "az.waic is removed — use az.loo. New LOO helpers: az.loo_expectations, "
+            "az.loo_metrics, az.loo_r2. Accessor after `import arviz_stats`: "
+            "ds.azstats.summary() / .rhat() / .ess() / .loo()."
         ),
     },
     {
@@ -246,7 +300,9 @@ def pymc_example_search(query: str) -> str:
         score = _keyword_match(query, pattern["keywords"])
         if score == 0:
             # Check title and explanation
-            if _text_match(query, pattern["title"]) or _text_match(query, pattern["explanation"]):
+            if _text_match(query, pattern["title"]) or _text_match(
+                query, pattern["explanation"]
+            ):
                 score = 1
         if score > 0:
             scored.append((score, pattern))

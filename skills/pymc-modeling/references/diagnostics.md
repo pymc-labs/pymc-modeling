@@ -28,8 +28,8 @@ def check_sampling(idata, var_names=None):
         var_names = ["~offset", "~raw"]
 
     # 1. Divergences (DataTree access in ArviZ 1.0)
-    n_div = idata["sample_stats"].dataset["diverging"].sum().item()
-    n_samples = idata["sample_stats"].dataset["diverging"].size
+    n_div = idata["sample_stats"]["diverging"].sum().item()
+    n_samples = idata["sample_stats"]["diverging"].size
     print(f"Divergences: {n_div} ({100*n_div/n_samples:.2f}%)")
 
     # 2. Summary with key diagnostics
@@ -63,7 +63,7 @@ az.plot_trace(idata, compact=True)
 az.plot_rank(idata, var_names=["beta", "sigma"])
 
 # 3. Pair plot with divergences (if any divergences)
-if idata["sample_stats"].dataset["diverging"].sum() > 0:
+if idata["sample_stats"]["diverging"].sum() > 0:
     az.plot_pair(idata, divergences=True)
 ```
 
@@ -254,9 +254,9 @@ print(f"Problematic observations: {bad_idx}")
 
 ## LOO-CV and Model Comparison
 
-### Computing Log-Likelihood with nutpie
+### Computing Log-Likelihood (required for LOO-CV)
 
-nutpie does not store log-likelihood automatically (it silently ignores `idata_kwargs`). Compute it explicitly after sampling. See SKILL.md § Inference for details.
+PyMC 6 does not store `log_likelihood` automatically — `pm.sample(..., compute_log_likelihood=True)` emits a `FutureWarning`. Compute it explicitly after sampling, regardless of sampler:
 
 ```python
 with model:

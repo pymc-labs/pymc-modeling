@@ -94,9 +94,9 @@ import numpy as np
 import xarray as xr
 
 # Get posterior predictive from each model
-pp_a = dt_a["posterior_predictive"].dataset["y"].values  # shape: (chain, draw, obs)
-pp_b = dt_b["posterior_predictive"].dataset["y"].values
-pp_c = dt_c["posterior_predictive"].dataset["y"].values
+pp_a = dt_a["posterior_predictive"]["y"].values  # shape: (chain, draw, obs)
+pp_b = dt_b["posterior_predictive"]["y"].values
+pp_c = dt_c["posterior_predictive"]["y"].values
 
 # Get stacking weights
 w = comparison["weight"].values  # [0.65, 0.35, 0.0]

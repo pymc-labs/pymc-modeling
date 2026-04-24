@@ -4,7 +4,7 @@
 
 Leave-one-out cross-validation (LOO-CV) estimates out-of-sample predictive accuracy without actually refitting the model. ArviZ 1.0 uses Pareto-smoothed importance sampling (PSIS) for efficient computation.
 
-CRITICAL: ArviZ 1.0 uses DataTree (not InferenceData). WAIC is removed — use LOO exclusively.
+CRITICAL: ArviZ 1.0 uses DataTree (not InferenceData). `az.waic` is removed — use LOO exclusively.
 
 ## az.loo()
 
@@ -36,11 +36,13 @@ loo_result.n_data_points  # Number of observations
 ```python
 with pm.Model() as model:
     ...
-    # pm.sample() computes log_likelihood by default
-    idata = pm.sample(idata_kwargs={"log_likelihood": True})
+    idata = pm.sample()
+
+# PyMC 6: compute log_likelihood explicitly after sampling
+pm.compute_log_likelihood(idata, model=model)
 
 # Verify
-print("log_likelihood" in dt.children)
+print("log_likelihood" in idata.children)
 ```
 
 ## Pareto k Diagnostics

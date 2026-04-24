@@ -22,7 +22,6 @@ import numpy as np
 
 from src.runner import (
     DEFAULT_TIMEOUT,
-    RESULTS_DIR,
     RUNS_DIR,
     load_tasks,
 )
@@ -36,24 +35,25 @@ JUDGE_TIMEOUT = 60
 
 # Regex patterns for matching posterior variable names in parameter recovery.
 # Word-boundary style patterns avoid false positives (e.g., "mu" won't match "momentum").
-_MU_PAT = re.compile(r'(?:^|_)mu(?:$|_|\d)|mean|overall|group', re.IGNORECASE)
-_CUT_PAT = re.compile(r'cutpoint|threshold|(?:^|_)cut(?:$|_|\d)', re.IGNORECASE)
-_DEP_PAT = re.compile(r'hlthdep|depression|(?:^|_)dep(?:$|_|\d)', re.IGNORECASE)
+_MU_PAT = re.compile(r"(?:^|_)mu(?:$|_|\d)|mean|overall|group", re.IGNORECASE)
+_CUT_PAT = re.compile(r"cutpoint|threshold|(?:^|_)cut(?:$|_|\d)", re.IGNORECASE)
+_DEP_PAT = re.compile(r"hlthdep|depression|(?:^|_)dep(?:$|_|\d)", re.IGNORECASE)
 _VOL_PAT = re.compile(
-    r'vol|log.?vol|sigma_h|(?:^|_)h(?:$|_|\d)|latent|innovation',
+    r"vol|log.?vol|sigma_h|(?:^|_)h(?:$|_|\d)|latent|innovation",
     re.IGNORECASE,
 )
-_NU_PAT = re.compile(r'(?:^|_)nu(?:$|_|\d)|(?:^|_)df(?:$|_|\d)', re.IGNORECASE)
+_NU_PAT = re.compile(r"(?:^|_)nu(?:$|_|\d)|(?:^|_)df(?:$|_|\d)", re.IGNORECASE)
 _WT_PAT = re.compile(
-    r'weight|(?:^|_)w(?:$|_|\d)|(?:^|_)pi(?:$|_|\d)|mix.?prob',
+    r"weight|(?:^|_)w(?:$|_|\d)|(?:^|_)pi(?:$|_|\d)|mix.?prob",
     re.IGNORECASE,
 )
-_COEFF_PAT = re.compile(r'beta|coeff|(?:^|_)b(?:$|_|\d)', re.IGNORECASE)
+_COEFF_PAT = re.compile(r"beta|coeff|(?:^|_)b(?:$|_|\d)", re.IGNORECASE)
 
 
 @dataclass
 class ScoreResult:
     """Scores for a single benchmark run."""
+
     task_id: str
     condition: str
     rep: int
@@ -110,15 +110,15 @@ def score_model_produced(run_dir: Path, idata=None) -> tuple[int, dict]:
         details["reason"] = f"results.nc load error: {e}"
         return 2, details
 
-    if not hasattr(idata, "posterior") or idata.posterior is None:
+    if "posterior" not in idata:
         details["reason"] = "no posterior group"
         return 2, details
 
-    details["groups"] = list(idata.groups())
+    details["groups"] = list(idata.children)
 
     # Check draw count
-    n_draws = idata.posterior.sizes.get("draw", 0)
-    n_chains = idata.posterior.sizes.get("chain", 0)
+    n_draws = idata["posterior"].sizes.get("draw", 0)
+    n_chains = idata["posterior"].sizes.get("chain", 0)
     details["n_draws"] = n_draws
     details["n_chains"] = n_chains
 
@@ -127,8 +127,8 @@ def score_model_produced(run_dir: Path, idata=None) -> tuple[int, dict]:
         return 3, details
 
     # Check for extra groups
-    has_pp = hasattr(idata, "posterior_predictive")
-    has_ll = hasattr(idata, "log_likelihood")
+    has_pp = "posterior_predictive" in idata
+    has_ll = "log_likelihood" in idata
     details["has_posterior_predictive"] = has_pp
     details["has_log_likelihood"] = has_ll
 
@@ -158,13 +158,13 @@ def score_convergence(run_dir: Path, idata=None) -> tuple[int, dict]:
         if idata is None:
             idata = az.from_netcdf(str(nc_path))
 
-        if not hasattr(idata, "posterior") or idata.posterior is None:
+        if "posterior" not in idata:
             details["reason"] = "no posterior group"
             return 0, details
 
         # Check chain count — r_hat and ESS require >= 2 chains
-        n_chains = idata.posterior.sizes.get("chain", 0)
-        n_draws = idata.posterior.sizes.get("draw", 0)
+        n_chains = idata["posterior"].sizes.get("chain", 0)
+        n_draws = idata["posterior"].sizes.get("draw", 0)
         details["n_chains"] = n_chains
         details["n_draws"] = n_draws
 
@@ -185,10 +185,18 @@ def score_convergence(run_dir: Path, idata=None) -> tuple[int, dict]:
                     vals = rhat[var].values.flatten()
                     rhat_values.extend(vals[np.isfinite(vals)])
                 rhat_values = np.array(rhat_values)
-                details["rhat_max"] = float(np.max(rhat_values)) if len(rhat_values) > 0 else None
-                details["rhat_mean"] = float(np.mean(rhat_values)) if len(rhat_values) > 0 else None
-                pct_above_1_05 = float(np.mean(rhat_values > 1.05)) if len(rhat_values) > 0 else 1.0
-                pct_above_1_1 = float(np.mean(rhat_values > 1.1)) if len(rhat_values) > 0 else 1.0
+                details["rhat_max"] = (
+                    float(np.max(rhat_values)) if len(rhat_values) > 0 else None
+                )
+                details["rhat_mean"] = (
+                    float(np.mean(rhat_values)) if len(rhat_values) > 0 else None
+                )
+                pct_above_1_05 = (
+                    float(np.mean(rhat_values > 1.05)) if len(rhat_values) > 0 else 1.0
+                )
+                pct_above_1_1 = (
+                    float(np.mean(rhat_values > 1.1)) if len(rhat_values) > 0 else 1.0
+                )
             except Exception:
                 rhat_values = np.array([])
                 pct_above_1_05 = 1.0
@@ -202,16 +210,20 @@ def score_convergence(run_dir: Path, idata=None) -> tuple[int, dict]:
                     vals = ess[var].values.flatten()
                     ess_values.extend(vals[np.isfinite(vals)])
                 ess_values = np.array(ess_values)
-                details["ess_min"] = float(np.min(ess_values)) if len(ess_values) > 0 else 0
-                details["ess_median"] = float(np.median(ess_values)) if len(ess_values) > 0 else 0
+                details["ess_min"] = (
+                    float(np.min(ess_values)) if len(ess_values) > 0 else 0
+                )
+                details["ess_median"] = (
+                    float(np.median(ess_values)) if len(ess_values) > 0 else 0
+                )
             except Exception:
                 ess_values = np.array([])
 
         # Count divergences
         n_divergent = 0
-        if hasattr(idata, "sample_stats"):
+        if "sample_stats" in idata:
             try:
-                div = idata.sample_stats.get("diverging")
+                div = idata["sample_stats"].get("diverging")
                 if div is not None:
                     n_divergent = int(div.values.sum())
             except Exception:
@@ -291,7 +303,7 @@ def _extract_judge_json(response: str) -> dict | None:
         pass
 
     # Strategy 2: find a JSON block inside markdown fences
-    fenced = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response, re.DOTALL)
+    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", response, re.DOTALL)
     if fenced:
         try:
             data = json.loads(fenced.group(1))
@@ -301,7 +313,7 @@ def _extract_judge_json(response: str) -> dict | None:
             pass
 
     # Strategy 3: find the outermost { ... } allowing newlines
-    brace = re.search(r'\{.*\}', response, re.DOTALL)
+    brace = re.search(r"\{.*\}", response, re.DOTALL)
     if brace:
         try:
             data = json.loads(brace.group())
@@ -313,14 +325,15 @@ def _extract_judge_json(response: str) -> dict | None:
     # Strategy 4: just extract the score number
     score_match = re.search(r'"score"\s*:\s*(\d)', response)
     if score_match:
-        return {"score": int(score_match.group(1)), "reasoning": "extracted from partial JSON"}
+        return {
+            "score": int(score_match.group(1)),
+            "reasoning": "extracted from partial JSON",
+        }
 
     return None
 
 
-def score_model_appropriateness_llm(
-    run_dir: Path, task_id: str
-) -> tuple[int, dict]:
+def score_model_appropriateness_llm(run_dir: Path, task_id: str) -> tuple[int, dict]:
     """Score criterion 3: Model appropriateness via LLM judge (0-5).
 
     Uses Haiku to score the model code against a task-specific rubric.
@@ -367,11 +380,14 @@ Code:
             [
                 "claude",
                 "--print",
-                "--model", JUDGE_MODEL,
+                "--model",
+                JUDGE_MODEL,
                 "--disable-slash-commands",
                 "--no-session-persistence",
-                "--max-budget-usd", JUDGE_BUDGET,
-                "--output-format", "text",
+                "--max-budget-usd",
+                JUDGE_BUDGET,
+                "--output-format",
+                "text",
             ],
             input=judge_prompt,
             capture_output=True,
@@ -410,35 +426,35 @@ def _score_appropriateness_regex(
     score = 0
 
     # Base: any PyMC model
-    if re.search(r'pm\.Model|pymc\.Model', code):
+    if re.search(r"pm\.Model|pymc\.Model", code):
         score = 2
 
     # Task-specific patterns
     task_patterns = {
         "T1_hierarchical": [
-            (r'(offset|noncentered|non_centered|mu\s*\+\s*sigma\s*\*)', "non-centered"),
-            (r'Hyperprior|mu_mu|tau|sigma_group', "hyperpriors"),
-            (r'Deterministic', "deterministic"),
+            (r"(offset|noncentered|non_centered|mu\s*\+\s*sigma\s*\*)", "non-centered"),
+            (r"Hyperprior|mu_mu|tau|sigma_group", "hyperpriors"),
+            (r"Deterministic", "deterministic"),
         ],
         "T2_ordinal": [
-            (r'OrderedLogistic|OrderedProbit', "ordinal_likelihood"),
-            (r'ordered|Ordered', "ordered_transform"),
-            (r'cutpoint|threshold', "cutpoints"),
+            (r"OrderedLogistic|OrderedProbit", "ordinal_likelihood"),
+            (r"ordered|Ordered", "ordered_transform"),
+            (r"cutpoint|threshold", "cutpoints"),
         ],
         "T3_stochastic_volatility": [
-            (r'GaussianRandomWalk', "gaussian_rw"),
-            (r'StudentT|Student', "student_t"),
-            (r'exp\s*\(', "exp_transform"),
+            (r"GaussianRandomWalk", "gaussian_rw"),
+            (r"StudentT|Student", "student_t"),
+            (r"exp\s*\(", "exp_transform"),
         ],
         "T4_mixture": [
-            (r'NormalMixture|Mixture', "mixture_dist"),
-            (r'Dirichlet', "dirichlet"),
-            (r'ordered|univariate_ordered', "ordered_transform"),
+            (r"NormalMixture|Mixture", "mixture_dist"),
+            (r"Dirichlet", "dirichlet"),
+            (r"ordered|univariate_ordered", "ordered_transform"),
         ],
         "T5_horseshoe": [
-            (r'horseshoe|Horseshoe', "horseshoe"),
-            (r'target_accept|nuts_sampler_kwargs', "sampler_tuning"),
-            (r'R2D2|regularized', "regularized"),
+            (r"horseshoe|Horseshoe", "horseshoe"),
+            (r"target_accept|nuts_sampler_kwargs", "sampler_tuning"),
+            (r"R2D2|regularized", "regularized"),
         ],
     }
 
@@ -473,18 +489,18 @@ def score_workflow(run_dir: Path) -> tuple[int, dict]:
     score = 0
 
     # 1. Prior predictive check
-    has_prior_pred = bool(re.search(r'sample_prior_predictive', code))
+    has_prior_pred = bool(re.search(r"sample_prior_predictive", code))
     details["prior_predictive"] = has_prior_pred
     if has_prior_pred:
         score += 1
 
     # 2. Convergence diagnostics examined
     diag_patterns = [
-        r'az\.summary|arviz\.summary',
-        r'az\.rhat|arviz\.rhat',
-        r'az\.ess|arviz\.ess',
-        r'divergi',  # catches "diverging", "divergences", "divergent"
-        r'r_hat',
+        r"az\.summary|arviz\.summary",
+        r"az\.rhat|arviz\.rhat",
+        r"az\.ess|arviz\.ess",
+        r"divergi",  # catches "diverging", "divergences", "divergent"
+        r"r_hat",
     ]
     diag_found = [p for p in diag_patterns if re.search(p, code)]
     has_diagnostics = len(diag_found) >= 2  # need at least 2 different checks
@@ -493,20 +509,20 @@ def score_workflow(run_dir: Path) -> tuple[int, dict]:
         score += 1
 
     # 3. Posterior predictive check
-    has_post_pred = bool(re.search(r'sample_posterior_predictive', code))
+    has_post_pred = bool(re.search(r"sample_posterior_predictive", code))
     details["posterior_predictive"] = has_post_pred
     if has_post_pred:
         score += 1
 
     # 4. Model comparison or sensitivity analysis
     comparison_patterns = [
-        r'az\.compare|arviz\.compare',
-        r'az\.loo\b|arviz\.loo\b',
-        r'az\.waic|arviz\.waic',
-        r'compute_log_likelihood',
+        r"az\.compare|arviz\.compare",
+        r"az\.loo\b|arviz\.loo\b",
+        r"az\.loo_metrics|az\.loo_expectations|az\.loo_r2",
+        r"compute_log_likelihood",
     ]
     # Also check for multiple pm.Model blocks (sensitivity analysis)
-    model_blocks = len(re.findall(r'pm\.Model\(|pymc\.Model\(', code))
+    model_blocks = len(re.findall(r"pm\.Model\(|pymc\.Model\(", code))
     comparison_found = [p for p in comparison_patterns if re.search(p, code)]
     has_comparison = len(comparison_found) > 0 or model_blocks >= 2
     details["model_comparison"] = {
@@ -518,7 +534,7 @@ def score_workflow(run_dir: Path) -> tuple[int, dict]:
         score += 1
 
     # 5. Early save — to_netcdf appears before the last 20% of the file
-    save_matches = list(re.finditer(r'to_netcdf|to_json', code))
+    save_matches = list(re.finditer(r"to_netcdf|to_json", code))
     if save_matches:
         first_save_pos = save_matches[0].start()
         total_len = len(code)
@@ -536,7 +552,9 @@ def score_workflow(run_dir: Path) -> tuple[int, dict]:
     return min(score, 5), details
 
 
-def score_parameter_recovery(run_dir: Path, task_id: str, idata=None) -> tuple[int, dict]:
+def score_parameter_recovery(
+    run_dir: Path, task_id: str, idata=None
+) -> tuple[int, dict]:
     """Score criterion 6: Parameter recovery (0-5).
 
     For tasks with known ground truth, checks whether posterior estimates
@@ -553,7 +571,7 @@ def score_parameter_recovery(run_dir: Path, task_id: str, idata=None) -> tuple[i
     try:
         if idata is None:
             idata = az.from_netcdf(str(nc_path))
-        if not hasattr(idata, "posterior") or idata.posterior is None:
+        if "posterior" not in idata:
             details["reason"] = "no posterior"
             return 0, details
 
@@ -580,7 +598,7 @@ def _posterior_all_finite(posterior) -> bool:
 def _recovery_T1_hierarchical(idata, details: dict) -> tuple[int, dict]:
     """T1: Check school effects are in plausible range."""
     score = 0
-    posterior = idata.posterior
+    posterior = idata["posterior"]
 
     # Look for group-level mean (various naming conventions)
     mu_names = [v for v in posterior.data_vars if _MU_PAT.search(v)]
@@ -601,15 +619,18 @@ def _recovery_T1_hierarchical(idata, details: dict) -> tuple[int, dict]:
 
     # Check that individual school effects exist and vary
     # Look for array-valued variables (school-level parameters)
-    array_vars = [v for v in posterior.data_vars
-                  if posterior[v].values.ndim > 2]  # chain x draw x schools
+    array_vars = [
+        v for v in posterior.data_vars if posterior[v].values.ndim > 2
+    ]  # chain x draw x schools
     details["array_vars"] = array_vars[:5]
 
     if array_vars:
         var = array_vars[0]
         means = np.mean(posterior[var].values, axis=(0, 1))
-        details["school_effect_range"] = [round(float(means.min()), 2),
-                                          round(float(means.max()), 2)]
+        details["school_effect_range"] = [
+            round(float(means.min()), 2),
+            round(float(means.max()), 2),
+        ]
         # Effects should span a reasonable range
         if means.max() - means.min() > 1.0:
             score += 2
@@ -628,7 +649,7 @@ def _recovery_T1_hierarchical(idata, details: dict) -> tuple[int, dict]:
 def _recovery_T2_ordinal(idata, details: dict) -> tuple[int, dict]:
     """T2: Check cutpoints are ordered and coefficients have expected signs."""
     score = 0
-    posterior = idata.posterior
+    posterior = idata["posterior"]
 
     # Look for cutpoints
     cut_names = [v for v in posterior.data_vars if _CUT_PAT.search(v)]
@@ -640,8 +661,9 @@ def _recovery_T2_ordinal(idata, details: dict) -> tuple[int, dict]:
         details["cutpoint_means"] = [round(float(c), 2) for c in cut_means]
 
         # Cutpoints should be ordered
-        is_ordered = all(cut_means[i] <= cut_means[i + 1]
-                         for i in range(len(cut_means) - 1))
+        is_ordered = all(
+            cut_means[i] <= cut_means[i + 1] for i in range(len(cut_means) - 1)
+        )
         details["cutpoints_ordered"] = is_ordered
         if is_ordered:
             score += 2
@@ -670,7 +692,7 @@ def _recovery_T2_ordinal(idata, details: dict) -> tuple[int, dict]:
 def _recovery_T3_stochastic_volatility(idata, details: dict) -> tuple[int, dict]:
     """T3: Check latent volatility process is reasonable."""
     score = 0
-    posterior = idata.posterior
+    posterior = idata["posterior"]
 
     # Look for volatility-related variables.
     vol_names = [v for v in posterior.data_vars if _VOL_PAT.search(v)]
@@ -689,8 +711,11 @@ def _recovery_T3_stochastic_volatility(idata, details: dict) -> tuple[int, dict]
             details["nu_plausible"] = False
 
     # Check for volatility step size (should be small, < 1)
-    step_names = [v for v in posterior.data_vars
-                  if any(k in v.lower() for k in ["sigma", "step_size", "sigma_h"])]
+    step_names = [
+        v
+        for v in posterior.data_vars
+        if any(k in v.lower() for k in ["sigma", "step_size", "sigma_h"])
+    ]
     if step_names:
         for name in step_names:
             vals = posterior[name].values.flatten()
@@ -722,11 +747,14 @@ def _recovery_T4_mixture(idata, details: dict) -> tuple[int, dict]:
     """
     true_centers = np.array([-5.0, 0.0, 5.0])
     score = 0
-    posterior = idata.posterior
+    posterior = idata["posterior"]
 
     # Find component means (various naming conventions)
-    mean_names = [v for v in posterior.data_vars
-                  if any(k in v.lower() for k in ["mu", "mean", "center", "loc"])]
+    mean_names = [
+        v
+        for v in posterior.data_vars
+        if any(k in v.lower() for k in ["mu", "mean", "center", "loc"])
+    ]
     details["mean_candidates"] = mean_names
 
     if mean_names:
@@ -781,7 +809,7 @@ def _recovery_T4_mixture(idata, details: dict) -> tuple[int, dict]:
 def _recovery_T5_horseshoe(idata, details: dict) -> tuple[int, dict]:
     """T5: Check shrinkage — at least some coefficients near zero."""
     score = 0
-    posterior = idata.posterior
+    posterior = idata["posterior"]
 
     # Find coefficient variables (beta, coeff, etc.)
     coeff_names = [v for v in posterior.data_vars if _COEFF_PAT.search(v)]
@@ -817,8 +845,11 @@ def _recovery_T5_horseshoe(idata, details: dict) -> tuple[int, dict]:
                 details["shrinkage_pattern"] = "weak"
 
     # Check for tau (global shrinkage) — should be small
-    tau_names = [v for v in posterior.data_vars
-                 if any(k in v.lower() for k in ["tau", "global_shrinkage"])]
+    tau_names = [
+        v
+        for v in posterior.data_vars
+        if any(k in v.lower() for k in ["tau", "global_shrinkage"])
+    ]
     if tau_names:
         tau_mean = float(np.mean(posterior[tau_names[0]].values))
         details["tau_mean"] = round(tau_mean, 4)
@@ -924,7 +955,7 @@ def evaluate_pass_fail(
     try:
         if idata is None:
             idata = az.from_netcdf(str(nc_path))
-        if not hasattr(idata, "posterior") or idata.posterior is None:
+        if "posterior" not in idata:
             details["non_degenerate"] = False
             details["reason"] = "no posterior group"
             return False, details
@@ -932,8 +963,8 @@ def evaluate_pass_fail(
         all_finite = True
         any_nonzero_std = False
 
-        for var_name in idata.posterior.data_vars:
-            values = idata.posterior[var_name].values
+        for var_name in idata["posterior"].data_vars:
+            values = idata["posterior"][var_name].values
             mean_val = np.mean(values)
             std_val = np.std(values)
 
@@ -947,7 +978,9 @@ def evaluate_pass_fail(
 
         if not all_finite:
             details["non_degenerate"] = False
-            details["reason"] = f"non-finite mean in variable '{details.get('non_finite_var')}'"
+            details["reason"] = (
+                f"non-finite mean in variable '{details.get('non_finite_var')}'"
+            )
             return False, details
 
         if not any_nonzero_std:
@@ -1125,20 +1158,25 @@ def score_all(runs_dir: Path | None = None) -> list[ScoreResult]:
         scores_dir = run_dir.parent.parent / "scores"
         scores_dir.mkdir(parents=True, exist_ok=True)
         score_file = scores_dir / f"{task_id}_{condition}_rep{rep}.json"
-        score_file.write_text(json.dumps({
-            "task_id": task_id,
-            "condition": condition,
-            "rep": rep,
-            "model_produced": score.model_produced,
-            "convergence": score.convergence,
-            "model_appropriateness": score.model_appropriateness,
-            "best_practices": score.best_practices,
-            "workflow": score.workflow,
-            "parameter_recovery": score.parameter_recovery,
-            "total": score.total,
-            "passed": score.passed,
-            "retries": score.retries,
-            "details": score.details,
-        }, indent=2))
+        score_file.write_text(
+            json.dumps(
+                {
+                    "task_id": task_id,
+                    "condition": condition,
+                    "rep": rep,
+                    "model_produced": score.model_produced,
+                    "convergence": score.convergence,
+                    "model_appropriateness": score.model_appropriateness,
+                    "best_practices": score.best_practices,
+                    "workflow": score.workflow,
+                    "parameter_recovery": score.parameter_recovery,
+                    "total": score.total,
+                    "passed": score.passed,
+                    "retries": score.retries,
+                    "details": score.details,
+                },
+                indent=2,
+            )
+        )
 
     return results

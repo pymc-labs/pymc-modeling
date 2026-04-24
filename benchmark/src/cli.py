@@ -15,15 +15,11 @@ import logging
 import shutil
 import sys
 import time
-from pathlib import Path
 
-from src.analysis import generate_report, load_scores
+from src.analysis import generate_report
 from src.runner import (
     RESULTS_DIR,
-    RUNS_DIR,
-    TASKS_PATH,
     get_run_dir,
-    is_cached,
     load_tasks,
     run_all,
     run_single,
@@ -197,9 +193,7 @@ def cmd_validate(args):
                 import arviz as az
 
                 idata = az.from_netcdf(str(nc))
-                has_posterior = (
-                    hasattr(idata, "posterior") and idata.posterior is not None
-                )
+                has_posterior = "posterior" in idata and idata["posterior"] is not None
                 if has_posterior:
                     log(f"PASS: results.nc has posterior in {cond}")
                     checks.append((f"results_nc_{cond}", True, []))
@@ -317,7 +311,9 @@ def cmd_clean(args):
         for condition in conditions:
             for rep in range(args.reps):
                 run_dir = get_run_dir(task_id, condition, rep)
-                score_file = RESULTS_DIR / "scores" / f"{task_id}_{condition}_rep{rep}.json"
+                score_file = (
+                    RESULTS_DIR / "scores" / f"{task_id}_{condition}_rep{rep}.json"
+                )
 
                 if run_dir.exists():
                     shutil.rmtree(run_dir)
@@ -334,7 +330,9 @@ def cmd_clean(args):
 
 def cmd_inspect(args):
     """Show detailed scores for a single run."""
-    score_file = RESULTS_DIR / "scores" / f"{args.task}_{args.condition}_rep{args.rep}.json"
+    score_file = (
+        RESULTS_DIR / "scores" / f"{args.task}_{args.condition}_rep{args.rep}.json"
+    )
 
     if not score_file.exists():
         print(f"No score found: {score_file.name}")
@@ -415,7 +413,9 @@ def main():
 
     # status
     p_status = sub.add_parser("status", help="Show run/score status")
-    p_status.add_argument("--reps", type=int, default=5, help="Number of reps to display")
+    p_status.add_argument(
+        "--reps", type=int, default=5, help="Number of reps to display"
+    )
 
     # clean
     p_clean = sub.add_parser("clean", help="Delete run/score data")
@@ -428,8 +428,13 @@ def main():
     p_inspect.add_argument("--task", default="T1_hierarchical", help="Task ID")
     p_inspect.add_argument("--condition", default="no_skill", help="Condition")
     p_inspect.add_argument("--rep", type=int, default=0, help="Replication number")
-    p_inspect.add_argument("-v", "--verbose", action="store_true", dest="verbose_inspect",
-                           help="Show full score details")
+    p_inspect.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        dest="verbose_inspect",
+        help="Show full score details",
+    )
 
     args = parser.parse_args()
     setup_logging(args.verbose)

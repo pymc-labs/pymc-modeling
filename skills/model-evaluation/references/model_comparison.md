@@ -5,13 +5,12 @@
 ```python
 az.compare(
     compare_dict,       # Dict[str, DataTree] — named models
-    ic="loo",           # Information criterion: only "loo" in ArviZ 1.0
     method="stacking",  # Weight method: "stacking" or "BB-pseudo-BMA"
     scale="log",        # "log" (default) or "deviance"
 )
 ```
 
-CRITICAL: ArviZ 1.0 uses DataTree, not InferenceData. WAIC is removed.
+CRITICAL: ArviZ 1.0 uses DataTree, not InferenceData. `az.waic` is removed and `az.compare` only supports LOO — the old `ic=` argument has been dropped.
 
 ## Basic Usage
 
@@ -165,7 +164,7 @@ When comparing many models, be cautious:
 ## Common Pitfalls
 
 1. **Different data**: All models must be fit to the same observations. LOO cannot compare models fit to different datasets.
-2. **Missing log_likelihood**: Ensure all DataTree objects contain `log_likelihood`. Use `idata_kwargs={"log_likelihood": True}` in `pm.sample()`.
+2. **Missing log_likelihood**: Ensure all DataTree objects contain `log_likelihood`. In PyMC 6, call `pm.compute_log_likelihood(idata, model=model)` after sampling.
 3. **Ignoring warnings**: A model with warning=True has unreliable ELPD. Fix the Pareto k issues before comparing.
 4. **Over-interpreting small differences**: If d_loo < 4 (on log scale), models are practically equivalent. Prefer the simpler model.
 5. **Confusing ELPD with evidence**: LOO measures predictive accuracy, not posterior probability of the model being true. They answer different questions.

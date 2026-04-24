@@ -334,5 +334,54 @@
     "title": "Correlated random effects in hierarchical model",
     "code": "with pm.Model(coords=coords) as model:\n    # Correlated group effects\n    chol, corr, stds = pm.LKJCholeskyCov('chol', n=2, eta=2,\n        sd_dist=pm.HalfNormal.dist(2.5), compute_corr=True)\n    # Non-centered\n    z = pm.Normal('z', 0, 1, dims=('group', 'effect'))\n    effects = pm.Deterministic('effects',\n        pt.dot(z, chol.T), dims=('group', 'effect'))",
     "explanation": "When group-level intercepts and slopes are correlated, model them jointly with LKJCholeskyCov. This captures the correlation structure while maintaining non-centered parameterization."
+  },
+  {
+    "id": "arviz_datatree",
+    "keywords": ["InferenceData", "idata.posterior", "convert_to_inference_data", "az.InferenceData", "AttributeError", "DataTree", "from_dict", "arviz 1.0"],
+    "title": "ArviZ 1.0 DataTree replaces InferenceData",
+    "code": "# BAD (ArviZ <1.0 / PyMC <6): the InferenceData class no longer exists\n# idata = az.InferenceData(...)            # AttributeError in ArviZ 1.0\n# idata = az.convert_to_inference_data(d)  # removed\n# post = idata.posterior                   # works on DataTree, but see below\n\n# GOOD (PyMC 6 + ArviZ 1.0):\n# pm.sample returns xarray.DataTree directly\nidata = pm.sample()                    # xarray.DataTree\npost = idata['posterior']              # xr.Dataset (preferred access)\n\n# Convert from dicts / other frameworks\nimport arviz as az\ndt = az.convert_to_datatree(raw_samples)\n\n# Summaries: ci_prob/ci_kind, not hdi_prob\naz.summary(idata, ci_prob=0.89, ci_kind='eti')\n# Or via the accessor:\nimport arviz_stats\nidata.azstats.summary(ci_prob=0.89)",
+    "explanation": "ArviZ 1.0 removed the InferenceData class and az.convert_to_inference_data — everything is now xarray.DataTree. PyMC 6's pm.sample / sample_prior_predictive / sample_posterior_predictive return DataTree directly. Use az.convert_to_datatree for external inputs, access groups with dt['posterior'], and replace hdi_prob= with ci_prob/ci_kind. Import arviz_stats to enable the dt.azstats.<method>(...) accessor."
+  },
+  {
+    "id": "test_value_removed",
+    "keywords": ["test_value", "tag.test_value", "compute_test_value", "AttributeError", "pytensor", "debug"],
+    "title": "PyTensor 3 removed tag.test_value — use .eval method on the symbolic variable",
+    "code": "# BAD (PyTensor <3):\n# import pytensor\n# pytensor.config.compute_test_value = 'raise'\n# x.tag.test_value = np.array([1.0, 2.0])  # AttributeError in PyTensor 3\n\n# GOOD (PyTensor 3): call .eval on any symbolic variable with a point dict\nimport numpy as np\n\n# Evaluate an intermediate expression at concrete input values\nvalue = expr.eval({x: np.array([1.0, 2.0]), y: 3.0})\nprint(value)\n\n# For PyMC model debugging\nwith model:\n    print(model.point_logps())  # per-variable log-prob at initial point\n    model.debug()                # runs ops and surfaces the failing one",
+    "explanation": "PyTensor 3 removed tag.test_value and config.compute_test_value. To debug a symbolic graph, call the .eval method on any intermediate variable with a point dict mapping input vars to numpy values. For PyMC models, use model.point_logps() to find -inf log-probs and model.debug() to locate failing Ops."
+  },
+  {
+    "id": "compile_pymc_renamed",
+    "keywords": ["compile_pymc", "AttributeError", "module 'pymc' has no attribute", "pm.compile"],
+    "title": "pm.compile_pymc renamed to pm.compile",
+    "code": "# BAD (PyMC <6):\n# fn = pm.compile_pymc(inputs, outputs)  # deprecated in PyMC 6\n\n# GOOD (PyMC 6):\nfn = pm.compile(inputs, outputs)\n\n# PyTensor 3 defaults the 'auto' linker to numba\nimport pytensor\nfn = pm.compile(inputs, outputs, mode=pytensor.compile.mode.Mode(linker='auto'))",
+    "explanation": "PyMC 6 renamed pm.compile_pymc to pm.compile. The old name still exists as a deprecated alias, but new code should use pm.compile. Note PyTensor 3's Mode(linker='auto') now defaults to the numba linker."
+  },
+  {
+    "id": "sample_prior_predictive_samples",
+    "keywords": ["sample_prior_predictive", "samples=", "TypeError", "unexpected keyword", "draws="],
+    "title": "sample_prior_predictive uses draws=, not samples=",
+    "code": "# BAD (PyMC <6):\n# prior = pm.sample_prior_predictive(samples=500)  # TypeError in PyMC 6\n\n# GOOD (PyMC 6):\nwith model:\n    prior = pm.sample_prior_predictive(draws=500, random_seed=42)\n# prior is an xarray.DataTree with prior and prior_predictive groups\n\nimport arviz as az\naz.plot_ppc(prior, group='prior')",
+    "explanation": "PyMC 6 renamed the samples= argument of pm.sample_prior_predictive to draws= for consistency with pm.sample. pm.sample_prior_predictive and pm.sample_posterior_predictive both return xarray.DataTree (or dict with return_inferencedata=False)."
+  },
+  {
+    "id": "l_r_op_renamed",
+    "keywords": ["L_op", "R_op", "AttributeError", "pytensor", "Op", "pull_back", "push_forward"],
+    "title": "PyTensor 3 renamed Op.L_op / Op.R_op",
+    "code": "# BAD (PyTensor <3): custom Op subclasses\n# class MyOp(Op):\n#     def L_op(self, inputs, outputs, output_grads): ...\n#     def R_op(self, inputs, eval_points): ...\n\n# GOOD (PyTensor 3):\nfrom pytensor.graph.op import Op\n\nclass MyOp(Op):\n    def pull_back(self, inputs, outputs, output_grads):\n        # formerly L_op — reverse-mode vector-Jacobian product\n        ...\n\n    def push_forward(self, inputs, eval_points):\n        # formerly R_op — forward-mode Jacobian-vector product\n        ...",
+    "explanation": "PyTensor 3 renamed the Op differentiation hooks: L_op -> pull_back (reverse-mode / VJP) and R_op -> push_forward (forward-mode / JVP). Any custom Op subclass must be updated; old method names will raise AttributeError during gradient construction."
+  },
+  {
+    "id": "waic_removed",
+    "keywords": ["waic", "az.waic", "AttributeError", "module 'arviz' has no attribute 'waic'", "ic='waic'"],
+    "title": "az.waic was removed — use az.loo",
+    "code": "# BAD (ArviZ <1.0):\n# w = az.waic(idata)                           # AttributeError in ArviZ 1.0\n# comp = az.compare(models, ic='waic')         # no longer supported\n\n# GOOD (ArviZ 1.0): use PSIS-LOO and the new LOO family\nimport arviz as az\n\nloo = az.loo(idata)\ncomp = az.compare({'m1': idata1, 'm2': idata2})  # ic defaults to 'loo'\n\n# Richer LOO-based summaries\naz.loo_expectations(idata, kind='mean')\naz.loo_metrics(idata, kind='rmse')\naz.loo_r2(idata)",
+    "explanation": "ArviZ 1.0 removed az.waic and ic='waic' from az.compare. PSIS-LOO is the recommended information criterion; the loo_expectations, loo_metrics, loo_r2, loo_score, and loo_moment_match helpers cover most use cases that formerly fell back on WAIC."
+  },
+  {
+    "id": "add_groups_removed",
+    "keywords": ["add_groups", "AttributeError", "idata.add_groups", "InferenceData"],
+    "title": "InferenceData.add_groups removed — update the DataTree directly",
+    "code": "# BAD (ArviZ <1.0):\n# idata.add_groups({'posterior_predictive': post_pred})  # AttributeError in ArviZ 1.0\n\n# GOOD (ArviZ 1.0): idata is an xarray.DataTree\n# Option 1: direct assignment\nidata['posterior_predictive'] = post_pred_dataset\n\n# Option 2: .update with a dict of Datasets\nidata.update({'posterior_predictive': post_pred_dataset})\n\n# Option 3: let PyMC extend it for you\nwith model:\n    pm.sample_posterior_predictive(idata, extend_inferencedata=True)",
+    "explanation": "InferenceData.add_groups no longer exists — the DataTree API uses direct assignment (dt['group'] = ds) or .update({...}). For PyMC workflows, sample_posterior_predictive(..., extend_inferencedata=True) still does the right thing against a DataTree."
   }
 ]

@@ -148,7 +148,7 @@ def relabel_samples(idata):
 
     # Apply to all component-indexed variables
     for var in ["mu", "sigma", "w"]:
-        if var in idata["posterior"].dataset:
+        if var in idata["posterior"].ds:
             vals = idata["posterior"][var].values
             # Gather along component axis using sort indices
             relabeled = np.take_along_axis(vals, sort_idx, axis=-1)
@@ -270,7 +270,7 @@ for K in [2, 3, 4]:
         models[f"K={K}"] = idata
 
 # Compare
-comparison = az.compare(models, ic="loo")
+comparison = az.compare(models)
 print(comparison[["rank", "elpd_loo", "d_loo", "weight"]])
 az.plot_compare(comparison)
 ```
@@ -288,8 +288,8 @@ az.plot_posterior(idata, var_names=["mu"])
 
 # Check overlap between components
 # Well-separated components have non-overlapping HDIs
-summary = az.summary(idata, var_names=["mu"], hdi_prob=0.94)
-print(summary[["mean", "eti_5.5%", "eti_94.5%"]])
+summary = az.summary(idata, var_names=["mu"], ci_prob=0.94, ci_kind="hdi")
+print(summary[["mean", "hdi_3%", "hdi_97%"]])
 ```
 
 ---

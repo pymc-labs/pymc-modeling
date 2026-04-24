@@ -38,7 +38,7 @@ An expert doesn't randomly try plots—they follow a systematic workflow:
 
 ## DataTree Fundamentals
 
-ArviZ 1.0 uses `DataTree` (from xarray-datatree) instead of `InferenceData`. The variable name `idata` is kept by convention. Access groups via dict syntax instead of attributes.
+`pm.sample()` returns an `xarray.DataTree`. The variable name `idata` is kept by convention. Access groups via bracket syntax; attribute access (`idata.posterior`) is not supported.
 
 ### Structure
 
@@ -46,7 +46,7 @@ ArviZ 1.0 uses `DataTree` (from xarray-datatree) instead of `InferenceData`. The
 import arviz as az
 
 # DataTree groups (access via dict syntax):
-dt = idata  # idata is actually a DataTree in ArviZ 1.0
+dt = idata  # idata is a DataTree
 dt["posterior"]              # MCMC samples: (chain, draw, *dims)
 dt["posterior_predictive"]   # Predictions at observed points
 dt["prior"]                  # Prior samples
@@ -63,9 +63,9 @@ dt.children  # replaces .groups()
 
 ```python
 # Access a parameter (returns xarray.DataArray)
-beta = dt["posterior"].dataset["beta"]
-# Or shorthand (when group has a single dataset):
 beta = dt["posterior"]["beta"]
+# Equivalent — `.ds` is the Dataset attached to this node:
+beta = dt["posterior"].ds["beta"]
 
 # Convert to numpy
 beta_vals = dt["posterior"]["beta"].values  # shape: (chains, draws, *dims)
@@ -109,7 +109,7 @@ idata = az.from_netcdf("results.nc")
 
 # Save with compression (for large files)
 idata.to_netcdf("results.nc", engine="h5netcdf",
-                encoding={var: {"zlib": True} for var in idata["posterior"].dataset.data_vars})
+                encoding={var: {"zlib": True} for var in idata["posterior"].data_vars})
 ```
 
 ---
@@ -125,9 +125,8 @@ def quick_diagnostics(idata, var_names=None):
     """Run immediately after sampling."""
 
     # 1. Divergences (must be 0 or near 0)
-    # In ArviZ 1.0, access DataTree groups via dict syntax
-    n_div = idata["sample_stats"].dataset["diverging"].sum().item()
-    n_samples = idata["sample_stats"].dataset["diverging"].size
+    n_div = idata["sample_stats"]["diverging"].sum().item()
+    n_samples = idata["sample_stats"]["diverging"].size
     div_pct = 100 * n_div / n_samples
     print(f"Divergences: {n_div} ({div_pct:.2f}%)")
 
@@ -168,11 +167,9 @@ summary = az.summary(idata)
 # Exclude auxiliary parameters (e.g., non-centered offsets)
 summary = az.summary(idata, var_names=["~offset", "~raw"])
 
-# Include specific stats only
-summary = az.summary(idata, stat_funcs={"median": np.median}, extend=True)
-
-# Custom credible interval
-summary = az.summary(idata, hdi_prob=0.90)
+# Custom credible interval (ArviZ 1.0 uses ci_prob; ci_kind selects "eti" or "hdi")
+summary = az.summary(idata, ci_prob=0.95)
+summary = az.summary(idata, ci_prob=0.94, ci_kind="hdi")  # HDI if you prefer
 ```
 
 **Interpretation thresholds:**
@@ -209,10 +206,10 @@ az.plot_trace(idata, kind="rank_vlines")
 
 ```python
 # Count divergences (DataTree access pattern)
-n_div = idata["sample_stats"].dataset["diverging"].sum().item()
+n_div = idata["sample_stats"]["diverging"].sum().item()
 
 # Percentage
-div_pct = 100 * idata["sample_stats"].dataset["diverging"].mean().item()
+div_pct = 100 * idata["sample_stats"]["diverging"].mean().item()
 
 # When did they occur? (during warmup vs sampling)
 # Divergences in sample_stats are from sampling phase only
@@ -396,7 +393,7 @@ obs_stat = tail_fraction(idata["observed_data"]["y"].values)
 
 # Compute for each posterior predictive draw
 pp_stats = []
-for i in range(idata["posterior_predictive"].dataset.dims["draw"]):
+for i in range(idata["posterior_predictive"].sizes["draw"]):
     pp_sample = idata["posterior_predictive"]["y"].isel(draw=i).values.flatten()
     pp_stats.append(tail_fraction(pp_sample))
 
@@ -484,8 +481,9 @@ az.plot_posterior(idata, var_names=["beta"], ref_val=0)
 # With ROPE (Region of Practical Equivalence)
 az.plot_posterior(idata, var_names=["beta"], rope=[-0.1, 0.1])
 
-# Custom HDI probability
-az.plot_posterior(idata, hdi_prob=0.90)
+# Custom credible interval (ArviZ 1.0: ci_prob / ci_kind)
+az.plot_posterior(idata, ci_prob=0.95)
+az.plot_posterior(idata, ci_prob=0.89, ci_kind="hdi")
 
 # Point estimate options
 az.plot_posterior(idata, point_estimate="mode")  # or "mean", "median"
@@ -625,17 +623,18 @@ Points above the 0.7 line are influential observations where LOO approximation i
 2. K-fold CV instead
 3. Investigating why these points are influential
 
-### New LOO Functions in ArviZ 1.0
+### LOO utility functions
 
-ArviZ 1.0 provides additional LOO utilities:
-- `az.loo_expectations()` - LOO expected values
-- `az.loo_metrics()` - compute multiple LOO metrics at once
-- `az.loo_r2()` - LOO-based R-squared
-- `az.loo_score()` - LOO scoring rules
-- `az.loo_kfold()` - K-fold cross-validation
-- `az.loo_moment_match()` - moment matching for high Pareto k observations
-- `az.loo_subsample()` - subsampled LOO for large datasets
-- `az.reloo()` - refit and recompute LOO for problematic observations
+`az.waic` is removed — use LOO exclusively. Additional helpers:
+- `az.loo_expectations()` — weighted posterior expectations (mean / variance / quantile) from `posterior_predictive` + `log_likelihood`
+- `az.loo_metrics()` — predictive metrics (RMSE, MAE, etc.) in one call
+- `az.loo_r2()` — LOO-based R-squared
+- `az.loo_score()` — LOO scoring rules
+- `az.loo_kfold()` — K-fold cross-validation
+- `az.loo_moment_match()` — moment matching for high Pareto k observations
+- `az.loo_subsample()` — subsampled LOO for large datasets
+- `az.reloo()` — refit and recompute LOO for problematic observations
+- `az.loo_pit()` — calibration diagnostic (paired with `az.plot_loo_pit`)
 
 ### az.compare: Model Comparison Table
 
@@ -701,8 +700,8 @@ y_pred_avg = (
 ```python
 import xarray as xr
 
-# Compute custom statistics (DataTree access)
-posterior = idata["posterior"].dataset
+# Compute custom statistics on the posterior Dataset
+posterior = idata["posterior"].ds
 
 # Probability of effect > 0
 prob_positive = (posterior["beta"] > 0).mean(dim=["chain", "draw"])
@@ -725,8 +724,8 @@ def prob_direction(x):
     return (np.sign(x) == np.sign(x.mean())).mean()
 
 def hdi_width(x):
-    """Width of 94% HDI"""
-    hdi = az.hdi(x, hdi_prob=0.94)
+    """Width of 89% HDI"""
+    hdi = az.hdi(x, ci_prob=0.89, ci_kind="hdi")
     return hdi[1] - hdi[0]
 
 # Add to summary
@@ -745,7 +744,7 @@ idata_thin = idata.sel(draw=slice(None, None, 10))  # Keep every 10th
 
 # Random subset
 import numpy as np
-n_draws = idata["posterior"].dataset.dims["draw"]
+n_draws = idata["posterior"].sizes["draw"]
 keep_idx = np.random.choice(n_draws, size=500, replace=False)
 idata_subset = idata.sel(draw=keep_idx)
 ```

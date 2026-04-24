@@ -235,7 +235,7 @@ with bart_model:
     ppc = pm.sample_posterior_predictive(idata, var_names=["y_obs"])
 
 # Extract predictions
-y_pred = ppc.posterior_predictive["y_obs"]
+y_pred = ppc["posterior_predictive"]["y_obs"]
 ```
 
 ## Convergence Diagnostics

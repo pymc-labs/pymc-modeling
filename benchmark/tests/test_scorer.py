@@ -2,7 +2,6 @@
 
 import json
 from pathlib import Path
-from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -31,26 +30,23 @@ def _write_model_py(run_dir: Path, code: str):
     (run_dir / "model.py").write_text(code)
 
 
-def _create_idata(run_dir: Path, n_chains=4, n_draws=1000, n_divergent=0,
-                   has_pp=False, has_ll=False, rhat_noise=0.0):
-    """Helper: create a synthetic InferenceData and save to results.nc."""
+def _create_idata(
+    run_dir: Path,
+    n_chains=4,
+    n_draws=1000,
+    n_divergent=0,
+    has_pp=False,
+    has_ll=False,
+    rhat_noise=0.0,
+):
+    """Helper: create a synthetic DataTree and save to results.nc."""
     import arviz as az
-    import xarray as xr
 
     rng = np.random.default_rng(42)
 
     # Posterior
     mu = rng.normal(0, 1, (n_chains, n_draws))
     sigma = np.abs(rng.normal(1, 0.1, (n_chains, n_draws)))
-    posterior = xr.Dataset(
-        {
-            "mu": (["chain", "draw"], mu),
-            "sigma": (["chain", "draw"], sigma),
-        },
-        coords={"chain": range(n_chains), "draw": range(n_draws)},
-    )
-
-    groups = {"posterior": posterior}
 
     # Sample stats with divergences
     diverging = np.zeros((n_chains, n_draws), dtype=bool)
@@ -60,27 +56,23 @@ def _create_idata(run_dir: Path, n_chains=4, n_draws=1000, n_divergent=0,
         flat[indices] = True
         diverging = flat.reshape(n_chains, n_draws)
 
-    sample_stats = xr.Dataset(
-        {"diverging": (["chain", "draw"], diverging)},
-        coords={"chain": range(n_chains), "draw": range(n_draws)},
-    )
-    groups["sample_stats"] = sample_stats
+    data = {
+        "posterior": {"mu": mu, "sigma": sigma},
+        "sample_stats": {"diverging": diverging},
+    }
+    dims = {"mu": [], "sigma": [], "diverging": []}
+    coords = {"chain": np.arange(n_chains), "draw": np.arange(n_draws)}
 
     if has_pp:
-        pp = xr.Dataset(
-            {"y_pred": (["chain", "draw"], rng.normal(0, 1, (n_chains, n_draws)))},
-            coords={"chain": range(n_chains), "draw": range(n_draws)},
-        )
-        groups["posterior_predictive"] = pp
+        data["posterior_predictive"] = {"y_pred": rng.normal(0, 1, (n_chains, n_draws))}
+        dims["y_pred"] = []
 
     if has_ll:
-        ll = xr.Dataset(
-            {"y": (["chain", "draw", "y_dim_0"], rng.normal(0, 1, (n_chains, n_draws, 10)))},
-            coords={"chain": range(n_chains), "draw": range(n_draws), "y_dim_0": range(10)},
-        )
-        groups["log_likelihood"] = ll
+        data["log_likelihood"] = {"y": rng.normal(0, 1, (n_chains, n_draws, 10))}
+        coords["y_dim_0"] = np.arange(10)
+        dims["y"] = ["y_dim_0"]
 
-    idata = az.InferenceData(**groups)
+    idata = az.from_dict(data, coords=coords, dims=dims)
     idata.to_netcdf(str(run_dir / "results.nc"))
     return idata
 
@@ -155,7 +147,9 @@ with pm.Model(coords={"school": range(8)}) as model:
 
 class TestScoreAppropriatenessRegex:
     def test_no_model(self):
-        score, details = _score_appropriateness_regex("print('hello')", "T1_hierarchical", {})
+        score, details = _score_appropriateness_regex(
+            "print('hello')", "T1_hierarchical", {}
+        )
         assert score == 0
 
     def test_basic_model(self):
@@ -274,13 +268,17 @@ def _write_turns_jsonl(run_dir, turns):
 
 def _write_metadata(run_dir, num_turns=10, success=True):
     """Helper: write metadata.json."""
-    (run_dir / "metadata.json").write_text(json.dumps({
-        "task_id": "T1_hierarchical",
-        "condition": "no_skill",
-        "rep": 0,
-        "success": success,
-        "num_turns": num_turns,
-    }))
+    (run_dir / "metadata.json").write_text(
+        json.dumps(
+            {
+                "task_id": "T1_hierarchical",
+                "condition": "no_skill",
+                "rep": 0,
+                "success": success,
+                "num_turns": num_turns,
+            }
+        )
+    )
 
 
 def _make_assistant_turn(tool_name, tool_input):
@@ -295,20 +293,11 @@ def _make_assistant_turn(tool_name, tool_input):
     }
 
 
-def _create_idata_with_values(run_dir: Path, posterior_data: dict,
-                               n_chains=4, n_draws=1000, n_divergent=0):
+def _create_idata_with_values(
+    run_dir: Path, posterior_data: dict, n_chains=4, n_draws=1000, n_divergent=0
+):
     """Helper: create idata with specific posterior values."""
     import arviz as az
-    import xarray as xr
-
-    data_vars = {}
-    for name, values in posterior_data.items():
-        data_vars[name] = (["chain", "draw"], values)
-
-    posterior = xr.Dataset(
-        data_vars,
-        coords={"chain": range(n_chains), "draw": range(n_draws)},
-    )
 
     diverging = np.zeros((n_chains, n_draws), dtype=bool)
     if n_divergent > 0:
@@ -318,12 +307,14 @@ def _create_idata_with_values(run_dir: Path, posterior_data: dict,
         flat[indices] = True
         diverging = flat.reshape(n_chains, n_draws)
 
-    sample_stats = xr.Dataset(
-        {"diverging": (["chain", "draw"], diverging)},
-        coords={"chain": range(n_chains), "draw": range(n_draws)},
+    idata = az.from_dict(
+        {
+            "posterior": posterior_data,
+            "sample_stats": {"diverging": diverging},
+        },
+        coords={"chain": np.arange(n_chains), "draw": np.arange(n_draws)},
+        dims={name: [] for name in list(posterior_data) + ["diverging"]},
     )
-
-    idata = az.InferenceData(posterior=posterior, sample_stats=sample_stats)
     idata.to_netcdf(str(run_dir / "results.nc"))
     return idata
 
@@ -332,7 +323,9 @@ class TestEvaluatePassFail:
     def test_full_pass(self, run_dir):
         """Good idata, high scores -> passed=True."""
         _create_idata(run_dir, n_chains=4, n_draws=1000, n_divergent=0)
-        passed, details = evaluate_pass_fail(run_dir, model_produced_score=5, convergence_score=5)
+        passed, details = evaluate_pass_fail(
+            run_dir, model_produced_score=5, convergence_score=5
+        )
         assert passed is True
         assert details["sampling_completed"] is True
         assert details["convergence_acceptable"] is True
@@ -340,14 +333,18 @@ class TestEvaluatePassFail:
 
     def test_fail_no_sampling(self, run_dir):
         """model_produced=1 -> fail on sampling check."""
-        passed, details = evaluate_pass_fail(run_dir, model_produced_score=1, convergence_score=0)
+        passed, details = evaluate_pass_fail(
+            run_dir, model_produced_score=1, convergence_score=0
+        )
         assert passed is False
         assert details["sampling_completed"] is False
 
     def test_fail_convergence(self, run_dir):
         """Good idata but convergence_score=2 -> fail on convergence check."""
         _create_idata(run_dir, n_chains=4, n_draws=1000)
-        passed, details = evaluate_pass_fail(run_dir, model_produced_score=5, convergence_score=2)
+        passed, details = evaluate_pass_fail(
+            run_dir, model_produced_score=5, convergence_score=2
+        )
         assert passed is False
         assert details["convergence_acceptable"] is False
 
@@ -358,7 +355,9 @@ class TestEvaluatePassFail:
         mu[0, 0] = np.nan  # inject NaN
         sigma = rng.normal(1, 0.1, (4, 1000))
         _create_idata_with_values(run_dir, {"mu": mu, "sigma": sigma})
-        passed, details = evaluate_pass_fail(run_dir, model_produced_score=4, convergence_score=3)
+        passed, details = evaluate_pass_fail(
+            run_dir, model_produced_score=4, convergence_score=3
+        )
         assert passed is False
         assert details["non_degenerate"] is False
         assert "non-finite" in details["reason"]
@@ -367,7 +366,9 @@ class TestEvaluatePassFail:
         """All vars have zero std (constant values) -> fail on degenerate check."""
         constant = np.full((4, 1000), 5.0)
         _create_idata_with_values(run_dir, {"mu": constant, "sigma": constant})
-        passed, details = evaluate_pass_fail(run_dir, model_produced_score=4, convergence_score=3)
+        passed, details = evaluate_pass_fail(
+            run_dir, model_produced_score=4, convergence_score=3
+        )
         assert passed is False
         assert details["non_degenerate"] is False
         assert "degenerate" in details["reason"]
@@ -375,7 +376,9 @@ class TestEvaluatePassFail:
     def test_pass_marginal(self, run_dir):
         """Boundary: model_produced=4, convergence=3, valid idata -> pass."""
         _create_idata(run_dir, n_chains=4, n_draws=1000, n_divergent=0)
-        passed, details = evaluate_pass_fail(run_dir, model_produced_score=4, convergence_score=3)
+        passed, details = evaluate_pass_fail(
+            run_dir, model_produced_score=4, convergence_score=3
+        )
         assert passed is True
 
 
@@ -429,34 +432,29 @@ class TestScoreParameterRecovery:
     def test_t4_good_recovery(self, run_dir):
         """T4: component means near [-5, 0, 5] -> high score."""
         import arviz as az
-        import xarray as xr
 
         rng = np.random.default_rng(42)
         # 3 component means (chain x draw x component)
         n_chains, n_draws = 4, 1000
-        mu = np.stack([
-            rng.normal([-5.0, 0.0, 5.0], 0.3, (n_draws, 3))
-            for _ in range(n_chains)
-        ])
+        mu = np.stack(
+            [rng.normal([-5.0, 0.0, 5.0], 0.3, (n_draws, 3)) for _ in range(n_chains)]
+        )
         w = rng.dirichlet([10, 10, 10], (n_chains, n_draws))
 
-        posterior = xr.Dataset(
+        idata = az.from_dict(
             {
-                "mu": (["chain", "draw", "component"], mu),
-                "w": (["chain", "draw", "component"], w),
+                "posterior": {"mu": mu, "w": w},
+                "sample_stats": {
+                    "diverging": np.zeros((n_chains, n_draws), dtype=bool)
+                },
             },
             coords={
-                "chain": range(n_chains),
-                "draw": range(n_draws),
-                "component": range(3),
+                "chain": np.arange(n_chains),
+                "draw": np.arange(n_draws),
+                "component": np.arange(3),
             },
+            dims={"mu": ["component"], "w": ["component"], "diverging": []},
         )
-        sample_stats = xr.Dataset(
-            {"diverging": (["chain", "draw"],
-                           np.zeros((n_chains, n_draws), dtype=bool))},
-            coords={"chain": range(n_chains), "draw": range(n_draws)},
-        )
-        idata = az.InferenceData(posterior=posterior, sample_stats=sample_stats)
         idata.to_netcdf(str(run_dir / "results.nc"))
 
         score, details = score_parameter_recovery(run_dir, "T4_mixture")
@@ -470,28 +468,28 @@ class TestScoreParameterRecovery:
         # 11 predictors: 3 important, 8 shrunk to zero
         betas = np.zeros((n_chains, n_draws, 11))
         for c in range(n_chains):
-            betas[c, :, 0] = rng.normal(0.5, 0.1, n_draws)   # important
+            betas[c, :, 0] = rng.normal(0.5, 0.1, n_draws)  # important
             betas[c, :, 1] = rng.normal(-0.3, 0.08, n_draws)  # important
-            betas[c, :, 2] = rng.normal(0.2, 0.05, n_draws)   # important
+            betas[c, :, 2] = rng.normal(0.2, 0.05, n_draws)  # important
             for j in range(3, 11):
                 betas[c, :, j] = rng.normal(0.0, 0.02, n_draws)  # shrunk
 
         import arviz as az
-        import xarray as xr
-        posterior = xr.Dataset(
-            {"beta": (["chain", "draw", "predictor"], betas)},
-            coords={
-                "chain": range(n_chains),
-                "draw": range(n_draws),
-                "predictor": range(11),
+
+        idata = az.from_dict(
+            {
+                "posterior": {"beta": betas},
+                "sample_stats": {
+                    "diverging": np.zeros((n_chains, n_draws), dtype=bool)
+                },
             },
+            coords={
+                "chain": np.arange(n_chains),
+                "draw": np.arange(n_draws),
+                "predictor": np.arange(11),
+            },
+            dims={"beta": ["predictor"], "diverging": []},
         )
-        sample_stats = xr.Dataset(
-            {"diverging": (["chain", "draw"],
-                           np.zeros((n_chains, n_draws), dtype=bool))},
-            coords={"chain": range(n_chains), "draw": range(n_draws)},
-        )
-        idata = az.InferenceData(posterior=posterior, sample_stats=sample_stats)
         idata.to_netcdf(str(run_dir / "results.nc"))
 
         score, details = score_parameter_recovery(run_dir, "T5_horseshoe")
@@ -501,15 +499,13 @@ class TestScoreParameterRecovery:
     def test_t4_false_positive_weight_names(self, run_dir):
         """T4: variables like 'mu_raw', 'spike' must NOT be treated as weights."""
         import arviz as az
-        import xarray as xr
 
         rng = np.random.default_rng(42)
         n_chains, n_draws = 4, 500
         # Component means near [-5, 0, 5]
-        mu = np.stack([
-            rng.normal([-5.0, 0.0, 5.0], 0.3, (n_draws, 3))
-            for _ in range(n_chains)
-        ])
+        mu = np.stack(
+            [rng.normal([-5.0, 0.0, 5.0], 0.3, (n_draws, 3)) for _ in range(n_chains)]
+        )
         # Variables whose names contain "w" or "pi" as substrings
         # but are NOT mixture weights
         mu_raw = rng.normal(0, 1, (n_chains, n_draws, 3))
@@ -518,26 +514,33 @@ class TestScoreParameterRecovery:
         # Actual weights under an unambiguous name
         weights = rng.dirichlet([10, 10, 10], (n_chains, n_draws))
 
-        posterior = xr.Dataset(
+        idata = az.from_dict(
             {
-                "mu": (["chain", "draw", "component"], mu),
-                "mu_raw": (["chain", "draw", "component"], mu_raw),
-                "sigma_raw": (["chain", "draw", "component"], sigma_raw),
-                "spike": (["chain", "draw", "component"], spike),
-                "weights": (["chain", "draw", "component"], weights),
+                "posterior": {
+                    "mu": mu,
+                    "mu_raw": mu_raw,
+                    "sigma_raw": sigma_raw,
+                    "spike": spike,
+                    "weights": weights,
+                },
+                "sample_stats": {
+                    "diverging": np.zeros((n_chains, n_draws), dtype=bool)
+                },
             },
             coords={
-                "chain": range(n_chains),
-                "draw": range(n_draws),
-                "component": range(3),
+                "chain": np.arange(n_chains),
+                "draw": np.arange(n_draws),
+                "component": np.arange(3),
+            },
+            dims={
+                "mu": ["component"],
+                "mu_raw": ["component"],
+                "sigma_raw": ["component"],
+                "spike": ["component"],
+                "weights": ["component"],
+                "diverging": [],
             },
         )
-        sample_stats = xr.Dataset(
-            {"diverging": (["chain", "draw"],
-                           np.zeros((n_chains, n_draws), dtype=bool))},
-            coords={"chain": range(n_chains), "draw": range(n_draws)},
-        )
-        idata = az.InferenceData(posterior=posterior, sample_stats=sample_stats)
         idata.to_netcdf(str(run_dir / "results.nc"))
 
         score, details = score_parameter_recovery(run_dir, "T4_mixture")
@@ -548,34 +551,29 @@ class TestScoreParameterRecovery:
     def test_t4_no_false_weight_without_real_weight(self, run_dir):
         """T4: 'mu_raw' alone must NOT be mistaken for a weight variable."""
         import arviz as az
-        import xarray as xr
 
         rng = np.random.default_rng(42)
         n_chains, n_draws = 4, 500
-        mu = np.stack([
-            rng.normal([-5.0, 0.0, 5.0], 0.3, (n_draws, 3))
-            for _ in range(n_chains)
-        ])
+        mu = np.stack(
+            [rng.normal([-5.0, 0.0, 5.0], 0.3, (n_draws, 3)) for _ in range(n_chains)]
+        )
         # Only false-positive names, no real weight variable
         mu_raw = rng.normal(0, 50, (n_chains, n_draws, 3))  # not valid weights
 
-        posterior = xr.Dataset(
+        idata = az.from_dict(
             {
-                "mu": (["chain", "draw", "component"], mu),
-                "mu_raw": (["chain", "draw", "component"], mu_raw),
+                "posterior": {"mu": mu, "mu_raw": mu_raw},
+                "sample_stats": {
+                    "diverging": np.zeros((n_chains, n_draws), dtype=bool)
+                },
             },
             coords={
-                "chain": range(n_chains),
-                "draw": range(n_draws),
-                "component": range(3),
+                "chain": np.arange(n_chains),
+                "draw": np.arange(n_draws),
+                "component": np.arange(3),
             },
+            dims={"mu": ["component"], "mu_raw": ["component"], "diverging": []},
         )
-        sample_stats = xr.Dataset(
-            {"diverging": (["chain", "draw"],
-                           np.zeros((n_chains, n_draws), dtype=bool))},
-            coords={"chain": range(n_chains), "draw": range(n_draws)},
-        )
-        idata = az.InferenceData(posterior=posterior, sample_stats=sample_stats)
         idata.to_netcdf(str(run_dir / "results.nc"))
 
         score, details = score_parameter_recovery(run_dir, "T4_mixture")
@@ -585,7 +583,6 @@ class TestScoreParameterRecovery:
     def test_t3_false_positive_volatility_names(self, run_dir):
         """T3: variables like 'theta', 'alpha' must NOT be treated as volatility."""
         import arviz as az
-        import xarray as xr
 
         rng = np.random.default_rng(42)
         n_chains, n_draws, n_time = 4, 500, 100
@@ -597,26 +594,33 @@ class TestScoreParameterRecovery:
         nu = rng.exponential(10, (n_chains, n_draws)) + 2
         sigma = np.abs(rng.normal(0.1, 0.02, (n_chains, n_draws)))
 
-        posterior = xr.Dataset(
+        idata = az.from_dict(
             {
-                "theta": (["chain", "draw"], theta),
-                "alpha": (["chain", "draw"], alpha),
-                "volatility": (["chain", "draw", "time"], volatility),
-                "nu": (["chain", "draw"], nu),
-                "sigma": (["chain", "draw"], sigma),
+                "posterior": {
+                    "theta": theta,
+                    "alpha": alpha,
+                    "volatility": volatility,
+                    "nu": nu,
+                    "sigma": sigma,
+                },
+                "sample_stats": {
+                    "diverging": np.zeros((n_chains, n_draws), dtype=bool)
+                },
             },
             coords={
-                "chain": range(n_chains),
-                "draw": range(n_draws),
-                "time": range(n_time),
+                "chain": np.arange(n_chains),
+                "draw": np.arange(n_draws),
+                "time": np.arange(n_time),
+            },
+            dims={
+                "theta": [],
+                "alpha": [],
+                "volatility": ["time"],
+                "nu": [],
+                "sigma": [],
+                "diverging": [],
             },
         )
-        sample_stats = xr.Dataset(
-            {"diverging": (["chain", "draw"],
-                           np.zeros((n_chains, n_draws), dtype=bool))},
-            coords={"chain": range(n_chains), "draw": range(n_draws)},
-        )
-        idata = az.InferenceData(posterior=posterior, sample_stats=sample_stats)
         idata.to_netcdf(str(run_dir / "results.nc"))
 
         score, details = score_parameter_recovery(run_dir, "T3_stochastic_volatility")
@@ -630,7 +634,6 @@ class TestScoreParameterRecovery:
     def test_t3_h_exact_name_matches(self, run_dir):
         """T3: bare 'h' and 'h_t' should match as volatility variables."""
         import arviz as az
-        import xarray as xr
 
         rng = np.random.default_rng(42)
         n_chains, n_draws, n_time = 4, 500, 100
@@ -638,24 +641,20 @@ class TestScoreParameterRecovery:
         nu = rng.exponential(10, (n_chains, n_draws)) + 2
         sigma = np.abs(rng.normal(0.1, 0.02, (n_chains, n_draws)))
 
-        posterior = xr.Dataset(
+        idata = az.from_dict(
             {
-                "h": (["chain", "draw", "time"], h),
-                "nu": (["chain", "draw"], nu),
-                "sigma": (["chain", "draw"], sigma),
+                "posterior": {"h": h, "nu": nu, "sigma": sigma},
+                "sample_stats": {
+                    "diverging": np.zeros((n_chains, n_draws), dtype=bool)
+                },
             },
             coords={
-                "chain": range(n_chains),
-                "draw": range(n_draws),
-                "time": range(n_time),
+                "chain": np.arange(n_chains),
+                "draw": np.arange(n_draws),
+                "time": np.arange(n_time),
             },
+            dims={"h": ["time"], "nu": [], "sigma": [], "diverging": []},
         )
-        sample_stats = xr.Dataset(
-            {"diverging": (["chain", "draw"],
-                           np.zeros((n_chains, n_draws), dtype=bool))},
-            coords={"chain": range(n_chains), "draw": range(n_draws)},
-        )
-        idata = az.InferenceData(posterior=posterior, sample_stats=sample_stats)
         idata.to_netcdf(str(run_dir / "results.nc"))
 
         score, details = score_parameter_recovery(run_dir, "T3_stochastic_volatility")
@@ -669,7 +668,6 @@ class TestScoreParameterRecovery:
         reparameterized mu), which is acceptable.
         """
         import arviz as az
-        import xarray as xr
 
         rng = np.random.default_rng(42)
         n_chains, n_draws = 4, 500
@@ -682,26 +680,33 @@ class TestScoreParameterRecovery:
         # Array-valued for school effects
         theta = rng.normal(5, 3, (n_chains, n_draws, 8))
 
-        posterior = xr.Dataset(
+        idata = az.from_dict(
             {
-                "momentum": (["chain", "draw"], momentum),
-                "corrupt": (["chain", "draw"], corrupt),
-                "mu": (["chain", "draw"], mu),
-                "overall_mean": (["chain", "draw"], overall_mean),
-                "theta": (["chain", "draw", "school"], theta),
+                "posterior": {
+                    "momentum": momentum,
+                    "corrupt": corrupt,
+                    "mu": mu,
+                    "overall_mean": overall_mean,
+                    "theta": theta,
+                },
+                "sample_stats": {
+                    "diverging": np.zeros((n_chains, n_draws), dtype=bool)
+                },
             },
             coords={
-                "chain": range(n_chains),
-                "draw": range(n_draws),
-                "school": range(8),
+                "chain": np.arange(n_chains),
+                "draw": np.arange(n_draws),
+                "school": np.arange(8),
+            },
+            dims={
+                "momentum": [],
+                "corrupt": [],
+                "mu": [],
+                "overall_mean": [],
+                "theta": ["school"],
+                "diverging": [],
             },
         )
-        sample_stats = xr.Dataset(
-            {"diverging": (["chain", "draw"],
-                           np.zeros((n_chains, n_draws), dtype=bool))},
-            coords={"chain": range(n_chains), "draw": range(n_draws)},
-        )
-        idata = az.InferenceData(posterior=posterior, sample_stats=sample_stats)
         idata.to_netcdf(str(run_dir / "results.nc"))
 
         score, details = score_parameter_recovery(run_dir, "T1_hierarchical")
@@ -719,7 +724,6 @@ class TestScoreParameterRecovery:
         'cutpoints' and 'hlthdep_coeff' should match.
         """
         import arviz as az
-        import xarray as xr
 
         rng = np.random.default_rng(42)
         n_chains, n_draws = 4, 500
@@ -730,25 +734,31 @@ class TestScoreParameterRecovery:
         cutpoints = rng.normal([-1, 0, 1], 0.1, (n_chains, n_draws, 3))
         hlthdep_coeff = rng.normal(-0.5, 0.1, (n_chains, n_draws))
 
-        posterior = xr.Dataset(
+        idata = az.from_dict(
             {
-                "execute": (["chain", "draw"], execute),
-                "depth": (["chain", "draw"], depth),
-                "cutpoints": (["chain", "draw", "cutpoint_dim"], cutpoints),
-                "hlthdep_coeff": (["chain", "draw"], hlthdep_coeff),
+                "posterior": {
+                    "execute": execute,
+                    "depth": depth,
+                    "cutpoints": cutpoints,
+                    "hlthdep_coeff": hlthdep_coeff,
+                },
+                "sample_stats": {
+                    "diverging": np.zeros((n_chains, n_draws), dtype=bool)
+                },
             },
             coords={
-                "chain": range(n_chains),
-                "draw": range(n_draws),
-                "cutpoint_dim": range(3),
+                "chain": np.arange(n_chains),
+                "draw": np.arange(n_draws),
+                "cutpoint_dim": np.arange(3),
+            },
+            dims={
+                "execute": [],
+                "depth": [],
+                "cutpoints": ["cutpoint_dim"],
+                "hlthdep_coeff": [],
+                "diverging": [],
             },
         )
-        sample_stats = xr.Dataset(
-            {"diverging": (["chain", "draw"],
-                           np.zeros((n_chains, n_draws), dtype=bool))},
-            coords={"chain": range(n_chains), "draw": range(n_draws)},
-        )
-        idata = az.InferenceData(posterior=posterior, sample_stats=sample_stats)
         idata.to_netcdf(str(run_dir / "results.nc"))
 
         score, details = score_parameter_recovery(run_dir, "T2_ordinal")
@@ -766,7 +776,6 @@ class TestScoreParameterRecovery:
     def test_t5_false_positive_coeff_names(self, run_dir):
         """T5: 'embed' must NOT match as coefficient. 'beta' should match."""
         import arviz as az
-        import xarray as xr
 
         rng = np.random.default_rng(42)
         n_chains, n_draws = 4, 500
@@ -775,31 +784,36 @@ class TestScoreParameterRecovery:
         # True positive with shrinkage pattern
         betas = np.zeros((n_chains, n_draws, 8))
         for c in range(n_chains):
-            betas[c, :, 0] = rng.normal(0.5, 0.1, n_draws)   # important
+            betas[c, :, 0] = rng.normal(0.5, 0.1, n_draws)  # important
             betas[c, :, 1] = rng.normal(-0.3, 0.08, n_draws)  # important
             for j in range(2, 8):
                 betas[c, :, j] = rng.normal(0.0, 0.02, n_draws)  # shrunk
         # "beta_log_raw_offset" should still match (contains "beta")
         beta_log_raw_offset = rng.normal(0, 0.01, (n_chains, n_draws))
 
-        posterior = xr.Dataset(
+        idata = az.from_dict(
             {
-                "embed": (["chain", "draw"], embed),
-                "beta": (["chain", "draw", "predictor"], betas),
-                "beta_log_raw_offset": (["chain", "draw"], beta_log_raw_offset),
+                "posterior": {
+                    "embed": embed,
+                    "beta": betas,
+                    "beta_log_raw_offset": beta_log_raw_offset,
+                },
+                "sample_stats": {
+                    "diverging": np.zeros((n_chains, n_draws), dtype=bool)
+                },
             },
             coords={
-                "chain": range(n_chains),
-                "draw": range(n_draws),
-                "predictor": range(8),
+                "chain": np.arange(n_chains),
+                "draw": np.arange(n_draws),
+                "predictor": np.arange(8),
+            },
+            dims={
+                "embed": [],
+                "beta": ["predictor"],
+                "beta_log_raw_offset": [],
+                "diverging": [],
             },
         )
-        sample_stats = xr.Dataset(
-            {"diverging": (["chain", "draw"],
-                           np.zeros((n_chains, n_draws), dtype=bool))},
-            coords={"chain": range(n_chains), "draw": range(n_draws)},
-        )
-        idata = az.InferenceData(posterior=posterior, sample_stats=sample_stats)
         idata.to_netcdf(str(run_dir / "results.nc"))
 
         score, details = score_parameter_recovery(run_dir, "T5_horseshoe")
@@ -815,8 +829,9 @@ class TestScoreParameterRecovery:
         n_chains, n_draws = 4, 500
         x1 = rng.normal(0, 1, (n_chains, n_draws))
         x2 = rng.normal(0, 1, (n_chains, n_draws))
-        _create_idata_with_values(run_dir, {"x1": x1, "x2": x2},
-                                   n_chains=n_chains, n_draws=n_draws)
+        _create_idata_with_values(
+            run_dir, {"x1": x1, "x2": x2}, n_chains=n_chains, n_draws=n_draws
+        )
 
         score, details = score_parameter_recovery(run_dir, "T1_hierarchical")
         # Should not crash, score should be low (only finite check = 1)

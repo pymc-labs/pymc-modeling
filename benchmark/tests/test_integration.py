@@ -9,24 +9,29 @@ from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
-import pytest
 
 from src.analysis import compute_effect_sizes, generate_report, load_scores
 from src.scorer import score_run
 
 
-def _create_synthetic_run(run_dir: Path, task_id: str, condition: str, rep: int,
-                          n_chains=4, n_draws=500, quality="good"):
+def _create_synthetic_run(
+    run_dir: Path,
+    task_id: str,
+    condition: str,
+    rep: int,
+    n_chains=4,
+    n_draws=500,
+    quality="good",
+):
     """Create a complete synthetic run directory with model.py, results.nc, metadata.json, turns.jsonl."""
     import arviz as az
-    import xarray as xr
 
     run_dir.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(42 + rep)
 
     # Write model.py with varying quality
     if quality == "good":
-        code = '''
+        code = """
 import pymc as pm
 import arviz as az
 import numpy as np
@@ -50,9 +55,9 @@ summary = az.summary(idata)
 print(summary)
 n_div = idata.sample_stats["diverging"].sum().item()
 print(f"Divergences: {n_div}")
-'''
+"""
     else:
-        code = '''
+        code = """
 import pymc as pm
 import numpy as np
 
@@ -60,7 +65,7 @@ with pm.Model() as model:
     mu = pm.Normal("mu", 0, 1)
     idata = pm.sample(200)
 idata.to_netcdf("results.nc")
-'''
+"""
     (run_dir / "model.py").write_text(code)
 
     # Create synthetic InferenceData
@@ -70,29 +75,31 @@ idata.to_netcdf("results.nc")
         offset = rng.normal(0, 1, (n_chains, n_draws, 8))
         theta = mu[:, :, None] + sigma[:, :, None] * offset
 
-        posterior = xr.Dataset(
-            {
-                "mu": (["chain", "draw"], mu),
-                "sigma": (["chain", "draw"], sigma),
-                "offset": (["chain", "draw", "school"], offset),
-                "theta": (["chain", "draw", "school"], theta),
-            },
-            coords={"chain": range(n_chains), "draw": range(n_draws), "school": range(8)},
-        )
+        posterior_vars = {"mu": mu, "sigma": sigma, "offset": offset, "theta": theta}
+        dims = {
+            "mu": [],
+            "sigma": [],
+            "offset": ["school"],
+            "theta": ["school"],
+            "diverging": [],
+        }
+        coords = {
+            "chain": np.arange(n_chains),
+            "draw": np.arange(n_draws),
+            "school": np.arange(8),
+        }
     else:
-        mu = rng.normal(0, 1, (n_chains, n_draws))
-        posterior = xr.Dataset(
-            {"mu": (["chain", "draw"], mu)},
-            coords={"chain": range(n_chains), "draw": range(n_draws)},
-        )
+        posterior_vars = {"mu": rng.normal(0, 1, (n_chains, n_draws))}
+        dims = {"mu": [], "diverging": []}
+        coords = {"chain": np.arange(n_chains), "draw": np.arange(n_draws)}
 
     diverging = np.zeros((n_chains, n_draws), dtype=bool)
-    sample_stats = xr.Dataset(
-        {"diverging": (["chain", "draw"], diverging)},
-        coords={"chain": range(n_chains), "draw": range(n_draws)},
-    )
 
-    idata = az.InferenceData(posterior=posterior, sample_stats=sample_stats)
+    idata = az.from_dict(
+        {"posterior": posterior_vars, "sample_stats": {"diverging": diverging}},
+        coords=coords,
+        dims=dims,
+    )
     idata.to_netcdf(str(run_dir / "results.nc"))
 
     # Write metadata.json
@@ -116,12 +123,30 @@ idata.to_netcdf("results.nc")
 
     # Write turns.jsonl
     turns = [
-        {"type": "assistant", "message": {"content": [
-            {"type": "tool_use", "name": "Write", "input": {"file_path": "/tmp/work/model.py"}}
-        ]}},
-        {"type": "assistant", "message": {"content": [
-            {"type": "tool_use", "name": "Bash", "input": {"command": "python model.py"}}
-        ]}},
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "Write",
+                        "input": {"file_path": "/tmp/work/model.py"},
+                    }
+                ]
+            },
+        },
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "Bash",
+                        "input": {"command": "python model.py"},
+                    }
+                ]
+            },
+        },
     ]
     with open(run_dir / "turns.jsonl", "w") as f:
         for turn in turns:
@@ -154,12 +179,16 @@ class TestBenchmarkIntegration:
 
         # Score each run (mock the LLM judge to avoid Claude CLI calls)
         scores_dir.mkdir(parents=True, exist_ok=True)
-        with patch("src.scorer.score_model_appropriateness_llm", _mock_appropriateness_llm):
+        with patch(
+            "src.scorer.score_model_appropriateness_llm", _mock_appropriateness_llm
+        ):
             for run_dir in sorted(runs_dir.iterdir()):
                 if not run_dir.is_dir():
                     continue
                 meta = json.loads((run_dir / "metadata.json").read_text())
-                result = score_run(run_dir, meta["task_id"], meta["condition"], meta["rep"])
+                result = score_run(
+                    run_dir, meta["task_id"], meta["condition"], meta["rep"]
+                )
 
                 # Verify score has all criteria
                 assert result.total > 0
@@ -170,21 +199,29 @@ class TestBenchmarkIntegration:
                 assert 0 <= result.parameter_recovery <= 5
 
                 # Save score
-                score_file = scores_dir / f"{meta['task_id']}_{meta['condition']}_rep{meta['rep']}.json"
-                score_file.write_text(json.dumps({
-                    "task_id": meta["task_id"],
-                    "condition": meta["condition"],
-                    "rep": meta["rep"],
-                    "model_produced": result.model_produced,
-                    "convergence": result.convergence,
-                    "model_appropriateness": result.model_appropriateness,
-                    "best_practices": result.best_practices,
-                    "workflow": result.workflow,
-                    "parameter_recovery": result.parameter_recovery,
-                    "total": result.total,
-                    "passed": result.passed,
-                    "retries": result.retries,
-                }, indent=2))
+                score_file = (
+                    scores_dir
+                    / f"{meta['task_id']}_{meta['condition']}_rep{meta['rep']}.json"
+                )
+                score_file.write_text(
+                    json.dumps(
+                        {
+                            "task_id": meta["task_id"],
+                            "condition": meta["condition"],
+                            "rep": meta["rep"],
+                            "model_produced": result.model_produced,
+                            "convergence": result.convergence,
+                            "model_appropriateness": result.model_appropriateness,
+                            "best_practices": result.best_practices,
+                            "workflow": result.workflow,
+                            "parameter_recovery": result.parameter_recovery,
+                            "total": result.total,
+                            "passed": result.passed,
+                            "retries": result.retries,
+                        },
+                        indent=2,
+                    )
+                )
 
         # Load scores
         df = load_scores(scores_dir)
@@ -219,27 +256,39 @@ class TestBenchmarkIntegration:
         _create_synthetic_run(bad_dir, task_id, "no_skill", 0, quality="bad")
 
         # Score both (mock the LLM judge)
-        with patch("src.scorer.score_model_appropriateness_llm", _mock_appropriateness_llm):
+        with patch(
+            "src.scorer.score_model_appropriateness_llm", _mock_appropriateness_llm
+        ):
             for run_dir in sorted(runs_dir.iterdir()):
                 meta = json.loads((run_dir / "metadata.json").read_text())
-                result = score_run(run_dir, meta["task_id"], meta["condition"], meta["rep"])
+                result = score_run(
+                    run_dir, meta["task_id"], meta["condition"], meta["rep"]
+                )
 
                 scores_dir.mkdir(parents=True, exist_ok=True)
-                score_file = scores_dir / f"{meta['task_id']}_{meta['condition']}_rep{meta['rep']}.json"
-                score_file.write_text(json.dumps({
-                    "task_id": meta["task_id"],
-                    "condition": meta["condition"],
-                    "rep": meta["rep"],
-                    "model_produced": result.model_produced,
-                    "convergence": result.convergence,
-                    "model_appropriateness": result.model_appropriateness,
-                    "best_practices": result.best_practices,
-                    "workflow": result.workflow,
-                    "parameter_recovery": result.parameter_recovery,
-                    "total": result.total,
-                    "passed": result.passed,
-                    "retries": result.retries,
-                }, indent=2))
+                score_file = (
+                    scores_dir
+                    / f"{meta['task_id']}_{meta['condition']}_rep{meta['rep']}.json"
+                )
+                score_file.write_text(
+                    json.dumps(
+                        {
+                            "task_id": meta["task_id"],
+                            "condition": meta["condition"],
+                            "rep": meta["rep"],
+                            "model_produced": result.model_produced,
+                            "convergence": result.convergence,
+                            "model_appropriateness": result.model_appropriateness,
+                            "best_practices": result.best_practices,
+                            "workflow": result.workflow,
+                            "parameter_recovery": result.parameter_recovery,
+                            "total": result.total,
+                            "passed": result.passed,
+                            "retries": result.retries,
+                        },
+                        indent=2,
+                    )
+                )
 
         df = load_scores(scores_dir)
         assert len(df) == 2

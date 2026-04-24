@@ -1,11 +1,25 @@
 {
   "name": "pymc-modeling",
-  "description": "PyMC Bayesian modeling skills, agents, hooks, and tools for Claude Code",
-  "version": "1.0.0",
+  "description": "PyMC 6+ / PyTensor 3+ / ArviZ 1.0+ Bayesian modeling skills, agents, hooks, and tools for Claude Code",
+  "version": "2.0.0",
   "author": {
     "name": "Chris Fonnesbeck"
   },
   "repository": "https://github.com/pymc-labs/pymc-modeling",
   "license": "MIT",
-  "keywords": ["python", "bayesian", "pymc", "arviz", "mcmc", "data-science"]
+  "keywords": ["python", "bayesian", "pymc", "arviz", "mcmc", "data-science"],
+  "mcpServers": {
+    "pymc-docs": {
+      "command": "pixi",
+      "args": [
+        "run",
+        "--manifest-path",
+        "${CLAUDE_PLUGIN_ROOT}/mcp-server/pixi.toml",
+        "python",
+        "-m",
+        "pymc_docs_server"
+      ],
+      "cwd": "${CLAUDE_PLUGIN_ROOT}/mcp-server"
+    }
+  }
 }

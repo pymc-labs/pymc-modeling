@@ -1,6 +1,6 @@
 ---
 name: pymc-diagnose
-description: Run full MCMC diagnostics on a DataTree/InferenceData file
+description: Run full MCMC diagnostics on a DataTree file
 ---
 
 Run a comprehensive MCMC diagnostic analysis on sampling results.

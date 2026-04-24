@@ -31,15 +31,14 @@ for name, path in MODEL_FILES.items():
 for name, dt in model_results.items():
     if "log_likelihood" not in dt.children:
         print(f"WARNING: {name} is missing log_likelihood group.")
-        print("Rerun sampling with pm.compute_log_likelihood(dt) or")
-        print("re-sample with idata_kwargs={'log_likelihood': True}")
+        print("Rerun with pm.compute_log_likelihood(dt, model=model) after pm.sample()")
 ```
 
 4. Run model comparison using LOO-CV:
 
 ```python
-# ArviZ 1.0: use ic="loo" (WAIC is removed)
-comparison = az.compare(model_results, ic="loo")
+# ArviZ 1.0: LOO is the only information criterion (WAIC is removed)
+comparison = az.compare(model_results)
 print(comparison)
 ```
 

@@ -31,7 +31,7 @@ model.debug()
 with model:
     # Single draw is enough to catch shape/broadcasting errors
     try:
-        prior_test = pm.sample_prior_predictive(samples=1, random_seed=42)
+        prior_test = pm.sample_prior_predictive(draws=1, random_seed=42)
         print("Prior predictive sampling: OK")
     except Exception as e:
         print(f"Shape/broadcasting error detected: {e}")

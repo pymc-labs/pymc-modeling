@@ -149,11 +149,11 @@ Always run prior predictive checks before sampling:
 
 ```python
 with model:
-    prior_pred = pm.sample_prior_predictive(samples=500, random_seed=42)
+    prior_pred = pm.sample_prior_predictive(draws=500, random_seed=42)
 
 # prior_pred is a DataTree (ArviZ 1.0)
-prior_samples = prior_pred["prior"].dataset
-prior_predictive = prior_pred["prior_predictive"].dataset
+prior_samples = prior_pred["prior"].ds
+prior_predictive = prior_pred["prior_predictive"].ds
 ```
 
 ### What to Check

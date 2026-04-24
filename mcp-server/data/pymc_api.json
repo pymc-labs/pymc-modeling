@@ -1,46 +1,65 @@
 [
   {
     "name": "pm.sample",
-    "signature": "pm.sample(draws=1000, tune=1000, chains=4, nuts_sampler='pymc', random_seed=None, ...)",
+    "signature": "pm.sample(draws=1000, tune=1000, chains=4, nuts_sampler='pymc', random_seed=None, ...) -> xarray.DataTree",
     "description": "Draw samples from the posterior using MCMC",
     "gotchas": [
+      "PyMC 6: returns xarray.DataTree (the old InferenceData class is gone — ArviZ 1.0 is DataTree-native)",
+      "Passing compute_log_likelihood=True now emits FutureWarning — call pm.compute_log_likelihood(idata, model=model) explicitly after sampling",
       "nutpie doesn't store log_likelihood automatically — call pm.compute_log_likelihood after",
       "Use nuts_sampler='nutpie' for 2-5x speedup",
       "Always set random_seed for reproducibility",
       "Set target_accept=0.95+ for difficult geometries (funnels, horseshoe)"
     ],
-    "see_also": ["pm.sample_prior_predictive", "pm.sample_posterior_predictive"]
+    "see_also": ["pm.sample_prior_predictive", "pm.sample_posterior_predictive", "pm.compute_log_likelihood"]
   },
   {
     "name": "pm.sample_prior_predictive",
-    "signature": "pm.sample_prior_predictive(samples=500, random_seed=None, ...)",
+    "signature": "pm.sample_prior_predictive(draws=500, random_seed=None, ...) -> xarray.DataTree | dict",
     "description": "Sample from the prior predictive distribution to check priors",
     "gotchas": [
-      "Always check prior predictive before sampling — catches unreasonable priors early",
-      "Returns InferenceData with prior and prior_predictive groups"
+      "PyMC 6: argument is draws= (not samples=) — passing samples= raises TypeError",
+      "Returns xarray.DataTree with prior and prior_predictive groups (or dict when return_inferencedata=False)",
+      "Always check prior predictive before sampling — catches unreasonable priors early"
     ],
     "see_also": ["pm.sample", "pm.sample_posterior_predictive"]
   },
   {
     "name": "pm.sample_posterior_predictive",
-    "signature": "pm.sample_posterior_predictive(trace, random_seed=None, extend_inferencedata=True, ...)",
+    "signature": "pm.sample_posterior_predictive(idata, random_seed=None, extend_inferencedata=True, ...) -> xarray.DataTree | dict",
     "description": "Generate posterior predictive samples for model checking",
     "gotchas": [
-      "Use extend_inferencedata=True to add posterior_predictive group to existing idata",
+      "PyMC 6: returns xarray.DataTree (or dict with return_inferencedata=False)",
+      "Use extend_inferencedata=True to add posterior_predictive group to the existing DataTree",
       "Requires observed data to be in the model"
     ],
     "see_also": ["pm.sample", "pm.sample_prior_predictive"]
   },
   {
     "name": "pm.compute_log_likelihood",
-    "signature": "pm.compute_log_likelihood(idata, ...)",
-    "description": "Compute log likelihood for model comparison (LOO-CV, WAIC)",
+    "signature": "pm.compute_log_likelihood(idata, var_names=None, model=None, ...) -> xarray.DataTree",
+    "description": "Compute log likelihood for model comparison (LOO-CV)",
     "gotchas": [
+      "PyMC 6: must be called explicitly — compute_log_likelihood=True inside pm.sample now emits FutureWarning",
+      "Pass model=model explicitly if you're outside the model context",
       "Required before calling az.loo or az.compare",
-      "nutpie sampler doesn't compute this automatically — must call explicitly",
-      "Can be memory-intensive for large datasets"
+      "nutpie sampler doesn't compute this automatically",
+      "Can be memory-intensive for large datasets",
+      "Note: az.waic was removed in ArviZ 1.0 — use az.loo (optionally with loo_expectations / loo_metrics)"
     ],
     "see_also": ["az.loo", "az.compare"]
+  },
+  {
+    "name": "pm.compile",
+    "signature": "pm.compile(inputs, outputs, mode=None, ...)",
+    "description": "Compile a PyTensor function for a PyMC model (PyMC 6 name)",
+    "gotchas": [
+      "PyMC 6 renamed pm.compile_pymc -> pm.compile",
+      "pm.compile_pymc still exists as a deprecated alias — prefer pm.compile",
+      "Used internally by sampling/VI; surface-level only for custom compilation paths",
+      "PyTensor 3 default linker is 'numba' under Mode(linker='auto')"
+    ],
+    "see_also": ["pm.sample", "pm.Model"]
   },
   {
     "name": "pm.find_constrained_prior",
@@ -337,5 +356,47 @@
       "init_dist sets the distribution for the first value"
     ],
     "see_also": ["pm.AR", "pm.BART"]
+  },
+  {
+    "name": "pm.Flat",
+    "signature": "pm.Flat(name, dims=None, ...)",
+    "description": "Improper flat prior over the real line",
+    "gotchas": [
+      "Still present in PyMC 6",
+      "Improper — only valid if the likelihood guarantees a proper posterior",
+      "Usually better to use a weakly informative Normal with large sigma"
+    ],
+    "see_also": ["pm.HalfFlat", "pm.Normal"]
+  },
+  {
+    "name": "pm.HalfFlat",
+    "signature": "pm.HalfFlat(name, dims=None, ...)",
+    "description": "Improper flat prior on the positive real line",
+    "gotchas": [
+      "Still present in PyMC 6",
+      "Improper — prefer HalfNormal / HalfCauchy / Exponential for scale parameters"
+    ],
+    "see_also": ["pm.Flat", "pm.HalfNormal"]
+  },
+  {
+    "name": "pm.dims",
+    "signature": "from pymc import dims  # stable namespace in PyMC 6",
+    "description": "Dims-aware distributions and helpers for models built around named dimensions",
+    "gotchas": [
+      "PyMC 6: pm.dims is stable — no longer experimental",
+      "Use for code that is written primarily in terms of dim names rather than shapes"
+    ],
+    "see_also": ["pm.Model"]
+  },
+  {
+    "name": "Approximation.sample",
+    "signature": "approx.sample(draws=1000, random_seed=None, ...) -> xarray.DataTree",
+    "description": "Draw samples from a fitted variational Approximation (ADVI/FullRankADVI/SVGD)",
+    "gotchas": [
+      "PyMC 6: Approximation.sample honors the active model context — no need to pass model explicitly",
+      "The self.model attribute is deprecated — rely on the pm.Model context manager instead",
+      "Returns xarray.DataTree like pm.sample"
+    ],
+    "see_also": ["pm.fit", "pm.sample"]
   }
 ]

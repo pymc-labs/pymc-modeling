@@ -31,14 +31,14 @@ def test_linear_regression_model_runs(mock_pymc_sample):
         idata = pm.sample(draws=10)
     
     # Verify structure (not values!)
-    assert "beta" in idata.posterior
-    assert "sigma" in idata.posterior
-    assert idata.posterior["beta"].shape == (1, 10, 3)  # chains, draws, dims
+    assert "beta" in idata["posterior"]
+    assert "sigma" in idata["posterior"]
+    assert idata["posterior"]["beta"].shape == (1, 10, 3)  # chains, draws, dims
 ```
 
 ## Testing Downstream Code
 
-When testing code that consumes InferenceData (plotting, serialization):
+When testing code that consumes a DataTree (plotting, serialization):
 
 ```python
 # conftest.py
@@ -101,7 +101,7 @@ def test_model_save_load(mock_pymc_sample):
     idata.to_netcdf(fname)
     loaded = az.from_netcdf(fname)
     
-    assert "x" in loaded.posterior
+    assert "x" in loaded["posterior"]
 ```
 
 ## CI/CD Integration
@@ -142,7 +142,7 @@ def test_posterior_convergence():
 These require real sampling:
 - Checking posterior means are close to true values
 - Testing ESS, r_hat, divergences
-- LOO-CV or WAIC model comparison
+- LOO-CV model comparison
 - Prior/posterior predictive checks (calibration)
 - Testing sampler-specific behavior (e.g., nutpie warmup)
 
