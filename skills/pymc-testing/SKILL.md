@@ -1,12 +1,11 @@
 ---
 name: pymc-testing
 description: >
-  Testing PyMC models with pytest. Use when writing unit tests for Bayesian models,
-  setting up test fixtures, mocking MCMC sampling, or testing model structure.
-  Covers pymc.testing.mock_sample, pytest fixtures, and the distinction between
-  fast structure-only tests (mocking) and slow posterior inference tests.
-  Triggers on: testing PyMC, pytest, unit tests for models, mock sampling,
-  test fixtures, CI/CD for Bayesian models.
+  Load when writing or modifying pytest tests that touch pymc.Model, pm.sample, or any PyMC
+  model code. Covers pymc.testing.mock_sample, pytest fixtures for Bayesian models, and the
+  distinction between fast structure-only tests (mocking) and slow posterior inference tests.
+  Triggers include: testing PyMC, pytest with pymc, unit tests for Bayesian models, mock
+  sampling, test fixtures for models, CI/CD for PyMC.
 ---
 
 # PyMC Testing

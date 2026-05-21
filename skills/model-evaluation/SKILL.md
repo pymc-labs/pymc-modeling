@@ -1,11 +1,11 @@
 ---
 name: model-evaluation
 description: >
-  Model comparison and evaluation for Bayesian models. Use when comparing models,
-  computing LOO-CV, interpreting ELPD, model stacking/averaging, or computing
-  Bayes factors. Covers ArviZ 1.0 API exclusively. Triggers on: model comparison,
-  LOO, ELPD, stacking, Bayes factor, cross-validation, model averaging, Pareto k,
-  predictive accuracy, information criterion.
+  Load when the user is comparing Bayesian models, computing LOO-CV / ELPD, calling az.loo
+  or az.compare, doing model stacking/averaging, or computing Bayes factors. Covers the
+  ArviZ 1.0 LOO/ELPD/stacking APIs exclusively (no waic). Triggers include: model comparison,
+  LOO, ELPD, az.compare, az.loo, loo_expectations, loo_metrics, loo_r2, Pareto k, stacking,
+  Bayes factor, cross-validation, predictive accuracy, information criterion.
 ---
 
 # Model Evaluation and Comparison (ArviZ 1.0)

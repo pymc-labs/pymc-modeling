@@ -1,13 +1,14 @@
 ---
 name: pymc-modeling
 description: >
-  Bayesian statistical modeling with PyMC 6+, PyTensor 3+, and ArviZ 1.0+. Use when building
-  probabilistic models, specifying priors, running MCMC inference, diagnosing convergence, or
-  comparing models. Covers PyMC, ArviZ (DataTree API), pymc-bart, pymc-extras, nutpie, and
-  JAX/NumPyro backends. Triggers on tasks involving: Bayesian inference, posterior sampling,
-  hierarchical/multilevel models, GLMs, time series, Gaussian processes, BART, mixture models,
-  prior/posterior predictive checks, MCMC diagnostics, LOO-CV, model comparison, or causal
-  inference with do/observe.
+  Load whenever the user is working on code that imports pymc, pytensor, or arviz, or asks
+  about Bayesian modeling, MCMC, priors, posteriors, sampling, or model diagnostics. Covers
+  PyMC 6+, PyTensor 3+, ArviZ 1.0+ (DataTree API), pymc-bart, pymc-extras, nutpie, and
+  JAX/NumPyro backends. Use for building probabilistic models, specifying priors, running
+  MCMC, diagnosing convergence, or comparing models. Triggers include: Bayesian inference,
+  posterior sampling, hierarchical/multilevel models, GLMs, time series, Gaussian processes,
+  HSGP, BART, mixture models, prior/posterior predictive checks, MCMC diagnostics, LOO-CV,
+  model comparison, causal inference with do/observe, and any PyTensor Op or graph work.
 ---
 
 # PyMC Modeling

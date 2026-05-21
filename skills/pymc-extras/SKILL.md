@@ -1,11 +1,11 @@
 ---
 name: pymc-extras
 description: >
-  Advanced PyMC extensions via pymc-extras (pmx). Use when working with splines,
-  distributional regression, R2D2M2CP priors, discrete variable marginalization,
-  or Laplace approximation. Triggers on: pymc_extras, pmx, splines, BSplineBasis,
-  distributional regression, GAMLSS, R2D2, horseshoe, marginalize, fit_laplace,
-  penalized splines.
+  Load when the user is working with pymc-extras (pmx) features: splines / BSplineBasis,
+  distributional regression / GAMLSS, R2D2M2CP or horseshoe priors, discrete variable
+  marginalization, or Laplace approximation via fit_laplace. Triggers include: pymc_extras,
+  pymc-extras, pmx, splines, BSplineBasis, distributional regression, GAMLSS, R2D2,
+  horseshoe (regularized/Finnish), marginalize, fit_laplace, penalized splines.
 ---
 
 # PyMC-Extras (pmx) — Advanced Extensions

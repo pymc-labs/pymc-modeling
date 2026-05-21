@@ -1,11 +1,12 @@
 ---
 name: prior-elicitation
 description: >
-  Prior selection and elicitation for Bayesian models. Use when choosing priors,
-  using find_constrained_prior, PreliZ, interpreting prior predictive checks,
-  or incorporating domain knowledge. Triggers on: prior selection, elicitation,
-  find_constrained_prior, PreliZ, prior predictive, domain knowledge, weakly
-  informative, constrained prior, sensitivity analysis.
+  Load when the user is choosing priors, running prior predictive checks, calling
+  find_constrained_prior, using PreliZ, or otherwise eliciting domain knowledge into a
+  Bayesian model. Covers weakly informative priors, constrained priors, sensitivity analysis,
+  and elicitation workflows. Triggers include: prior selection, elicitation,
+  find_constrained_prior, PreliZ, prior predictive, expert/informative priors,
+  weakly informative priors, constrained priors.
 ---
 
 # Prior Elicitation for PyMC Models
