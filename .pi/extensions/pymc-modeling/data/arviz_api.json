@@ -1,0 +1,605 @@
+[
+  {
+    "name": "az.summary",
+    "signature": "az.summary(data, var_names=None, filter_vars=None, ci_prob=0.89, ci_kind='eti', ...)",
+    "description": "Create a summary table with mean, sd, credible interval, ESS, and r_hat",
+    "gotchas": [
+      "ArviZ 1.0: accepts DataTree directly — no need to extract posterior",
+      "filter_vars='like' allows partial name matching",
+      "Default ci_prob=0.89 (was 0.94) and ci_kind='eti' (was 'hdi') — columns are eti_5.5%/eti_94.5%",
+      "hdi_prob= kwarg was removed — use ci_prob + ci_kind='hdi' instead",
+      "Also available as DataTree/Dataset accessor: dt.azstats.summary(...)"
+    ],
+    "see_also": ["az.plot_trace", "az.plot_posterior", "az.diagnose"]
+  },
+  {
+    "name": "az.diagnose",
+    "signature": "az.diagnose(data, var_names=None, ...)",
+    "description": "Run a consolidated set of convergence/sampling diagnostics on a DataTree",
+    "gotchas": [
+      "ArviZ 1.0 convenience entry point — checks r_hat, ESS, MCSE, divergences at once",
+      "Also available as dt.azstats.diagnose(...)"
+    ],
+    "see_also": ["az.summary", "az.rhat", "az.ess", "az.mcse"]
+  },
+  {
+    "name": "az.ci_in_rope",
+    "signature": "az.ci_in_rope(data, rope, var_names=None, ci_prob=0.89, ci_kind='eti', ...)",
+    "description": "Fraction of the credible interval that falls inside a region of practical equivalence",
+    "gotchas": [
+      "Replaces the old plot_posterior(rope=...) workflow for summary-style output",
+      "rope is a tuple (lower, upper) or dict mapping var_name -> tuple"
+    ],
+    "see_also": ["az.plot_posterior", "az.hdi", "az.eti"]
+  },
+  {
+    "name": "az.mean",
+    "signature": "az.mean(data, var_names=None, dim=None, ...)",
+    "description": "Posterior mean across chain/draw dims (ArviZ 1.0 point-estimate helper)",
+    "gotchas": ["Also as dt.azstats.mean(...)"],
+    "see_also": ["az.median", "az.mode", "az.std"]
+  },
+  {
+    "name": "az.median",
+    "signature": "az.median(data, var_names=None, dim=None, ...)",
+    "description": "Posterior median across chain/draw dims",
+    "gotchas": ["Also as dt.azstats.median(...)"],
+    "see_also": ["az.mean", "az.mode"]
+  },
+  {
+    "name": "az.mode",
+    "signature": "az.mode(data, var_names=None, dim=None, ...)",
+    "description": "Posterior mode (for discrete variables, or via KDE for continuous)",
+    "gotchas": ["Also as dt.azstats.mode(...)"],
+    "see_also": ["az.mean", "az.median"]
+  },
+  {
+    "name": "az.std",
+    "signature": "az.std(data, var_names=None, dim=None, ...)",
+    "description": "Posterior standard deviation",
+    "gotchas": ["Also as dt.azstats.std(...)"],
+    "see_also": ["az.var", "az.mad", "az.iqr"]
+  },
+  {
+    "name": "az.var",
+    "signature": "az.var(data, var_names=None, dim=None, ...)",
+    "description": "Posterior variance",
+    "gotchas": ["Also as dt.azstats.var(...)"],
+    "see_also": ["az.std"]
+  },
+  {
+    "name": "az.iqr",
+    "signature": "az.iqr(data, var_names=None, dim=None, ...)",
+    "description": "Interquartile range of the posterior",
+    "gotchas": ["Also as dt.azstats.iqr(...)"],
+    "see_also": ["az.mad", "az.std"]
+  },
+  {
+    "name": "az.mad",
+    "signature": "az.mad(data, var_names=None, dim=None, ...)",
+    "description": "Median absolute deviation of the posterior",
+    "gotchas": ["Robust scale estimate; also as dt.azstats.mad(...)"],
+    "see_also": ["az.iqr", "az.std"]
+  },
+  {
+    "name": "az.hdi",
+    "signature": "az.hdi(data, var_names=None, ci_prob=0.89, ...)",
+    "description": "Compute the highest density interval (HDI)",
+    "gotchas": [
+      "ArviZ 1.0: hdi_prob= renamed to ci_prob=",
+      "Also as dt.azstats.hdi(...)",
+      "Use az.eti for equal-tailed intervals"
+    ],
+    "see_also": ["az.eti", "az.summary", "az.ci_in_rope"]
+  },
+  {
+    "name": "az.eti",
+    "signature": "az.eti(data, var_names=None, ci_prob=0.89, ...)",
+    "description": "Equal-tailed credible interval (default in ArviZ 1.0 summary)",
+    "gotchas": [
+      "ArviZ 1.0 default ci_kind — symmetric quantile interval",
+      "Also as dt.azstats.eti(...)"
+    ],
+    "see_also": ["az.hdi", "az.summary"]
+  },
+  {
+    "name": "az.ess",
+    "signature": "az.ess(data, var_names=None, method='bulk', relative=False, ...)",
+    "description": "Effective sample size (bulk, tail, or per-quantile)",
+    "gotchas": [
+      "method='bulk' (default), 'tail', 'quantile', or 'local'",
+      "Check bulk ESS > 400 per chain as a rough minimum",
+      "Also as dt.azstats.ess(...)"
+    ],
+    "see_also": ["az.rhat", "az.mcse", "az.plot_ess"]
+  },
+  {
+    "name": "az.rhat",
+    "signature": "az.rhat(data, var_names=None, method='rank', ...)",
+    "description": "Potential scale reduction factor (r_hat) convergence diagnostic",
+    "gotchas": [
+      "r_hat < 1.01 indicates acceptable convergence",
+      "method='rank' is the rank-normalized split-R-hat (default)",
+      "Also as dt.azstats.rhat(...)"
+    ],
+    "see_also": ["az.rhat_nested", "az.ess", "az.diagnose"]
+  },
+  {
+    "name": "az.rhat_nested",
+    "signature": "az.rhat_nested(data, var_names=None, ...)",
+    "description": "Nested R-hat for designs with grouped chains (e.g. multi-start ensembles)",
+    "gotchas": ["Use when chains are organized in nested groups rather than exchangeable"],
+    "see_also": ["az.rhat", "az.ess"]
+  },
+  {
+    "name": "az.mcse",
+    "signature": "az.mcse(data, var_names=None, method='mean', ...)",
+    "description": "Monte Carlo standard error of posterior estimates",
+    "gotchas": [
+      "method='mean', 'sd', or 'quantile'",
+      "Also as dt.azstats.mcse(...)"
+    ],
+    "see_also": ["az.ess", "az.summary"]
+  },
+  {
+    "name": "az.bfmi",
+    "signature": "az.bfmi(data, ...)",
+    "description": "Bayesian fraction of missing information — HMC energy diagnostic",
+    "gotchas": [
+      "BFMI < 0.3 indicates poor energy exploration",
+      "Requires sample_stats/energy; also as dt.azstats.bfmi(...)"
+    ],
+    "see_also": ["az.plot_energy", "az.diagnose"]
+  },
+  {
+    "name": "az.kde",
+    "signature": "az.kde(data, var_names=None, ...)",
+    "description": "Kernel density estimate of marginal posterior(s)",
+    "gotchas": ["Also as dt.azstats.kde(...)"],
+    "see_also": ["az.ecdf", "az.histogram"]
+  },
+  {
+    "name": "az.ecdf",
+    "signature": "az.ecdf(data, var_names=None, ...)",
+    "description": "Empirical CDF of samples",
+    "gotchas": ["Also as dt.azstats.ecdf(...)"],
+    "see_also": ["az.kde", "az.histogram"]
+  },
+  {
+    "name": "az.histogram",
+    "signature": "az.histogram(data, var_names=None, bins='auto', ...)",
+    "description": "Histogram of posterior samples",
+    "gotchas": ["Also as dt.azstats.histogram(...)"],
+    "see_also": ["az.kde", "az.ecdf"]
+  },
+  {
+    "name": "az.qds",
+    "signature": "az.qds(data, var_names=None, ...)",
+    "description": "Quantile-dot summaries (quantile dotplot support data)",
+    "gotchas": ["Produces input for dotplot-style visualizations"],
+    "see_also": ["az.plot_posterior"]
+  },
+  {
+    "name": "az.thin",
+    "signature": "az.thin(data, factor=None, ...)",
+    "description": "Thin posterior samples by a factor or automatically",
+    "gotchas": ["Useful before expensive downstream ops; also as dt.azstats.thin(...)"],
+    "see_also": ["az.extract"]
+  },
+  {
+    "name": "az.weight_predictions",
+    "signature": "az.weight_predictions(idatas, weights=None, ...)",
+    "description": "Combine posterior predictive samples from multiple models using stacking/Pseudo-BMA weights",
+    "gotchas": [
+      "Pair with az.compare weights for averaged predictions",
+      "Replaces manual weighted averaging"
+    ],
+    "see_also": ["az.compare", "az.loo"]
+  },
+  {
+    "name": "az.psense",
+    "signature": "az.psense(data, ...)",
+    "description": "Prior/likelihood sensitivity via power-scaling",
+    "gotchas": [
+      "Detects prior–data conflict and likelihood-driven parameters",
+      "Use psense_summary for tabular output"
+    ],
+    "see_also": ["az.psense_summary", "az.bayes_factor"]
+  },
+  {
+    "name": "az.psense_summary",
+    "signature": "az.psense_summary(data, ...)",
+    "description": "Tabular summary of power-scaling sensitivity diagnostics",
+    "gotchas": ["Flags parameters whose posterior shifts strongly under prior/likelihood perturbation"],
+    "see_also": ["az.psense"]
+  },
+  {
+    "name": "az.bayes_factor",
+    "signature": "az.bayes_factor(data, var_name, prior=None, ref_val=0, ...)",
+    "description": "Savage–Dickey Bayes factor for a point null hypothesis",
+    "gotchas": [
+      "Requires matched prior and posterior samples",
+      "Sensitive to prior choice — interpret cautiously"
+    ],
+    "see_also": ["az.psense"]
+  },
+  {
+    "name": "az.kaplan_meier",
+    "signature": "az.kaplan_meier(time, event, ...)",
+    "description": "Kaplan–Meier survival curve estimate",
+    "gotchas": ["Non-parametric survival baseline; pair with generate_survival_curves"],
+    "see_also": ["az.generate_survival_curves"]
+  },
+  {
+    "name": "az.generate_survival_curves",
+    "signature": "az.generate_survival_curves(data, ...)",
+    "description": "Generate posterior survival curves from a fitted model",
+    "gotchas": ["Works with parametric survival models (e.g. Weibull) in ArviZ 1.0"],
+    "see_also": ["az.kaplan_meier"]
+  },
+  {
+    "name": "az.loo",
+    "signature": "az.loo(data, var_name=None, pointwise=False, ...)",
+    "description": "PSIS-LOO-CV — expected log pointwise predictive density",
+    "gotchas": [
+      "Requires log_likelihood group — call pm.compute_log_likelihood(idata, model=model) first if using nutpie",
+      "Check k-hat values — k > 0.7 indicates unreliable estimates; use loo_moment_match or reloo",
+      "Also as dt.azstats.loo(...)"
+    ],
+    "see_also": ["az.compare", "az.plot_khat", "az.loo_expectations", "az.loo_moment_match", "az.reloo"]
+  },
+  {
+    "name": "az.loo_i",
+    "signature": "az.loo_i(i, data, ...)",
+    "description": "Per-observation PSIS-LOO for a single index i",
+    "gotchas": ["Useful for debugging high k-hat observations one at a time"],
+    "see_also": ["az.loo", "az.loo_influence"]
+  },
+  {
+    "name": "az.loo_expectations",
+    "signature": "az.loo_expectations(data, var_name=None, kind='mean', probs=None, ...)",
+    "description": "LOO expectations (mean, quantile, etc.) of arbitrary posterior-predictive functions",
+    "gotchas": [
+      "ArviZ 1.0 API for LOO-based predictive summaries",
+      "kind='mean'|'var'|'quantile' — use probs for quantiles"
+    ],
+    "see_also": ["az.loo", "az.loo_metrics", "az.loo_r2"]
+  },
+  {
+    "name": "az.loo_influence",
+    "signature": "az.loo_influence(data, ...)",
+    "description": "Observation influence measures via LOO",
+    "gotchas": ["Complements k-hat for diagnosing influential observations"],
+    "see_also": ["az.loo", "az.plot_khat"]
+  },
+  {
+    "name": "az.loo_metrics",
+    "signature": "az.loo_metrics(data, kind='mae', y=None, ...)",
+    "description": "LOO-weighted predictive metrics (MAE, MSE, RMSE, etc.)",
+    "gotchas": [
+      "kind='mae'|'mse'|'rmse'|'acc' — cross-validated versions of standard metrics",
+      "More honest than in-sample metrics"
+    ],
+    "see_also": ["az.loo_expectations", "az.loo_r2", "az.metrics"]
+  },
+  {
+    "name": "az.loo_r2",
+    "signature": "az.loo_r2(data, ...)",
+    "description": "LOO R-squared — cross-validated proportion of variance explained",
+    "gotchas": [
+      "More reliable than in-sample Bayesian R2 for model selection",
+      "Requires log_likelihood group"
+    ],
+    "see_also": ["az.loo", "az.bayesian_r2", "az.residual_r2"]
+  },
+  {
+    "name": "az.loo_score",
+    "signature": "az.loo_score(data, scoring_rule='log', ...)",
+    "description": "LOO-based proper scoring rules (log, CRPS, etc.)",
+    "gotchas": ["Generalizes elpd to alternative scoring rules"],
+    "see_also": ["az.loo", "az.loo_metrics"]
+  },
+  {
+    "name": "az.loo_pit",
+    "signature": "az.loo_pit(data, y=None, y_hat=None, ...)",
+    "description": "LOO probability integral transform for calibration checks",
+    "gotchas": ["Uniform loo_pit values indicate well-calibrated predictions"],
+    "see_also": ["az.plot_loo_pit", "az.loo"]
+  },
+  {
+    "name": "az.loo_approximate_posterior",
+    "signature": "az.loo_approximate_posterior(data, log_p, log_q, ...)",
+    "description": "PSIS-LOO for approximate posteriors (VI/Laplace) via importance sampling correction",
+    "gotchas": [
+      "log_p and log_q are log true / log approximate density arrays over the draws",
+      "Essential when using ADVI or Laplace approximations"
+    ],
+    "see_also": ["az.loo", "az.loo_subsample"]
+  },
+  {
+    "name": "az.loo_subsample",
+    "signature": "az.loo_subsample(data, observations=None, ...)",
+    "description": "Subsampled PSIS-LOO for large N (estimates elpd from a subset)",
+    "gotchas": [
+      "Use when full loo is expensive; update later with update_subsample",
+      "Returns an estimate with extra Monte Carlo variance"
+    ],
+    "see_also": ["az.update_subsample", "az.loo"]
+  },
+  {
+    "name": "az.update_subsample",
+    "signature": "az.update_subsample(loo_result, data, observations=None, ...)",
+    "description": "Extend a subsampled LOO object with additional observations",
+    "gotchas": ["Incrementally tightens subsampled loo estimates"],
+    "see_also": ["az.loo_subsample"]
+  },
+  {
+    "name": "az.loo_moment_match",
+    "signature": "az.loo_moment_match(data, loo, upars, log_prob_upars_fn, log_lik_i_upars_fn, ...)",
+    "description": "Moment-matching correction for observations with high k-hat",
+    "gotchas": [
+      "Cheaper than reloo — transforms draws rather than refitting",
+      "Requires access to unconstrained parameters and log-lik closures"
+    ],
+    "see_also": ["az.reloo", "az.loo"]
+  },
+  {
+    "name": "az.reloo",
+    "signature": "az.reloo(wrapper, loo=None, k_thresh=0.7, ...)",
+    "description": "Exact refit-LOO for observations with k-hat above a threshold",
+    "gotchas": [
+      "wrapper must be an az.SamplingWrapper implementation",
+      "Expensive — only refits flagged observations"
+    ],
+    "see_also": ["az.SamplingWrapper", "az.loo_moment_match", "az.loo"]
+  },
+  {
+    "name": "az.compare",
+    "signature": "az.compare(compare_dict, ic='loo', method='stacking', ...)",
+    "description": "Compare models using information criteria (LOO) with stacking weights",
+    "gotchas": [
+      "compare_dict maps model names to DataTree (or InferenceData-like) objects",
+      "Returns DataFrame sorted by IC (best model first)",
+      "Check dse column — large values indicate unreliable comparison",
+      "ic='waic' is no longer supported — waic was removed in ArviZ 1.0"
+    ],
+    "see_also": ["az.loo", "az.plot_compare", "az.weight_predictions"]
+  },
+  {
+    "name": "az.loo_kfold",
+    "signature": "az.loo_kfold(wrapper, k=10, ...)",
+    "description": "K-fold cross-validation elpd via a SamplingWrapper",
+    "gotchas": [
+      "Alternative to LOO when PSIS fails or for grouped data",
+      "Requires an az.SamplingWrapper that knows how to refit the model"
+    ],
+    "see_also": ["az.SamplingWrapper", "az.loo", "az.reloo"]
+  },
+  {
+    "name": "az.SamplingWrapper",
+    "signature": "az.SamplingWrapper(model, idata_orig=None, log_lik_fn=None, ...)",
+    "description": "Base class to wrap a model/sampler for reloo and loo_kfold",
+    "gotchas": [
+      "Subclass and implement sample / log_likelihood__i / sel_observations",
+      "Needed for any CV that requires refitting"
+    ],
+    "see_also": ["az.reloo", "az.loo_kfold"]
+  },
+  {
+    "name": "az.bayesian_r2",
+    "signature": "az.bayesian_r2(y_true, y_pred, ...)",
+    "description": "Bayesian R-squared (Gelman et al. 2019) — in-sample explained variance",
+    "gotchas": ["Use loo_r2 for cross-validated alternative"],
+    "see_also": ["az.loo_r2", "az.residual_r2", "az.metrics"]
+  },
+  {
+    "name": "az.residual_r2",
+    "signature": "az.residual_r2(y_true, y_pred, ...)",
+    "description": "R-squared based on residual variance decomposition",
+    "gotchas": ["Companion to bayesian_r2 / loo_r2"],
+    "see_also": ["az.bayesian_r2", "az.loo_r2"]
+  },
+  {
+    "name": "az.kl_divergence",
+    "signature": "az.kl_divergence(p, q, ...)",
+    "description": "Kullback–Leibler divergence between two sample-based distributions",
+    "gotchas": ["Asymmetric — KL(p||q) != KL(q||p)"],
+    "see_also": ["az.wasserstein", "az.metrics"]
+  },
+  {
+    "name": "az.wasserstein",
+    "signature": "az.wasserstein(p, q, ...)",
+    "description": "Wasserstein distance between empirical distributions",
+    "gotchas": ["Symmetric distributional distance; complements KL"],
+    "see_also": ["az.kl_divergence"]
+  },
+  {
+    "name": "az.metrics",
+    "signature": "az.metrics(observed, predicted, kind='mae', ...)",
+    "description": "Predictive metrics (MAE, MSE, RMSE, accuracy) against observed data",
+    "gotchas": ["In-sample counterpart to loo_metrics"],
+    "see_also": ["az.loo_metrics", "az.bayesian_r2"]
+  },
+  {
+    "name": "az.from_netcdf",
+    "signature": "az.from_netcdf(filename, ...)",
+    "description": "Load a DataTree from a NetCDF file",
+    "gotchas": [
+      "ArviZ 1.0 returns xarray.DataTree, not the removed InferenceData class",
+      "Use az.to_netcdf(dt, 'file.nc') to save"
+    ],
+    "see_also": ["az.to_netcdf", "az.convert_to_datatree", "az.extract"]
+  },
+  {
+    "name": "az.to_netcdf",
+    "signature": "az.to_netcdf(data, filename, ...)",
+    "description": "Write a DataTree to a NetCDF file",
+    "gotchas": ["Companion to az.from_netcdf in the ArviZ 1.0 IO API"],
+    "see_also": ["az.from_netcdf"]
+  },
+  {
+    "name": "az.convert_to_datatree",
+    "signature": "az.convert_to_datatree(obj, group='posterior', coords=None, dims=None, ...)",
+    "description": "Convert dicts/arrays/framework-specific outputs to an xarray.DataTree",
+    "gotchas": [
+      "Replaces the removed az.convert_to_inference_data",
+      "PyMC 6's pm.sample already returns a DataTree — no conversion needed"
+    ],
+    "see_also": ["az.from_dict", "az.concat"]
+  },
+  {
+    "name": "az.from_dict",
+    "signature": "az.from_dict(posterior=None, posterior_predictive=None, observed_data=None, coords=None, dims=None, ...)",
+    "description": "Build a DataTree from Python dicts of arrays",
+    "gotchas": ["Useful for ad-hoc results or testing; all groups optional"],
+    "see_also": ["az.convert_to_datatree", "az.concat"]
+  },
+  {
+    "name": "az.concat",
+    "signature": "az.concat(*datatrees, dim='chain', ...)",
+    "description": "Concatenate DataTrees along a dimension (typically chain or draw)",
+    "gotchas": ["Use to stitch together results from multiple sampling runs"],
+    "see_also": ["az.extract"]
+  },
+  {
+    "name": "az.extract",
+    "signature": "az.extract(data, group='posterior', var_names=None, num_samples=None, combined=True, ...)",
+    "description": "Extract samples from a DataTree group, optionally subsampling",
+    "gotchas": [
+      "ArviZ 1.0: returns a Dataset with combined chain/draw when combined=True",
+      "num_samples parameter for random subsampling",
+      "Useful for post-processing and plotting"
+    ],
+    "see_also": ["az.summary", "az.from_netcdf"]
+  },
+  {
+    "name": ".azstats accessor",
+    "signature": "import arviz_stats; dt.azstats.<method>(...)  # or da.azstats.X / ds.azstats.X",
+    "description": "xarray accessor registering summary/rhat/ess/hdi/eti/loo/mcse/bfmi/kde/... on DataTree/Dataset/DataArray",
+    "gotchas": [
+      "Requires `import arviz_stats` to register the accessor",
+      "Every az.X function has a matching dt.azstats.X method with the same arguments",
+      "Preferred style in ArviZ 1.0 for chaining into xarray workflows"
+    ],
+    "see_also": ["az.summary", "az.rhat", "az.ess", "az.hdi", "az.loo"]
+  },
+  {
+    "name": "az.plot_trace",
+    "signature": "az.plot_trace(data, var_names=None, filter_vars=None, ...)",
+    "description": "Plot parameter traces and marginal posteriors",
+    "gotchas": [
+      "Essential first diagnostic — check for chain mixing and stationarity",
+      "Use var_names to focus on key parameters",
+      "kind='rank_bars' or 'rank_vlines' for rank-based diagnostics"
+    ],
+    "see_also": ["az.plot_posterior", "az.plot_rank"]
+  },
+  {
+    "name": "az.plot_ppc",
+    "signature": "az.plot_ppc(data, kind='kde', group='posterior_predictive', ...)",
+    "description": "Plot posterior (or prior) predictive checks",
+    "gotchas": [
+      "Requires posterior_predictive (or prior_predictive) group in the DataTree",
+      "kind='kde' for continuous, kind='cumulative' for discrete",
+      "Use observed_rug=True to show individual observations"
+    ],
+    "see_also": ["pm.sample_posterior_predictive", "az.plot_trace"]
+  },
+  {
+    "name": "az.plot_posterior",
+    "signature": "az.plot_posterior(data, var_names=None, ci_prob=0.89, ci_kind='eti', ref_val=None, ...)",
+    "description": "Plot posterior distributions with credible interval and point estimate",
+    "gotchas": [
+      "ArviZ 1.0: hdi_prob= removed — use ci_prob + ci_kind instead",
+      "ref_val adds a reference line (e.g., null hypothesis)",
+      "Use rope= for a region of practical equivalence band"
+    ],
+    "see_also": ["az.plot_trace", "az.summary", "az.ci_in_rope"]
+  },
+  {
+    "name": "az.plot_forest",
+    "signature": "az.plot_forest(data, var_names=None, combined=True, ci_prob=0.89, ci_kind='eti', ...)",
+    "description": "Forest plot comparing parameter estimates across groups/models",
+    "gotchas": [
+      "combined=True pools chains; False shows each chain separately",
+      "Useful for hierarchical model parameters",
+      "model_names parameter for comparing multiple models",
+      "ArviZ 1.0: hdi_prob= replaced by ci_prob + ci_kind"
+    ],
+    "see_also": ["az.plot_posterior", "az.summary"]
+  },
+  {
+    "name": "az.plot_pair",
+    "signature": "az.plot_pair(data, var_names=None, kind='scatter', divergences=True, ...)",
+    "description": "Pair plot of parameter posteriors (scatter, kde, or hexbin)",
+    "gotchas": [
+      "divergences=True highlights divergent transitions in red",
+      "Essential for diagnosing funnel geometry in hierarchical models",
+      "Use kind='hexbin' for many draws to avoid overplotting"
+    ],
+    "see_also": ["az.plot_trace", "az.plot_posterior"]
+  },
+  {
+    "name": "az.plot_rank",
+    "signature": "az.plot_rank(data, var_names=None, kind='bars', ...)",
+    "description": "Rank plot for visual convergence diagnostic",
+    "gotchas": [
+      "Uniform ranks indicate good mixing; non-uniform indicates convergence issues",
+      "More sensitive than trace plots for detecting poor mixing"
+    ],
+    "see_also": ["az.plot_trace", "az.plot_ess"]
+  },
+  {
+    "name": "az.plot_ess",
+    "signature": "az.plot_ess(data, var_names=None, kind='local', ...)",
+    "description": "Plot effective sample size across quantiles or iterations",
+    "gotchas": [
+      "kind='local' shows ESS for quantile estimation",
+      "kind='quantile' shows ESS at each quantile",
+      "Low ESS in tails may indicate poor exploration"
+    ],
+    "see_also": ["az.plot_rank", "az.summary", "az.ess"]
+  },
+  {
+    "name": "az.plot_energy",
+    "signature": "az.plot_energy(data, ...)",
+    "description": "Plot energy transition distribution for HMC/NUTS diagnostics",
+    "gotchas": [
+      "Large gap between marginal and transition energy indicates poor exploration",
+      "Requires sample_stats group with energy variable; pair with az.bfmi"
+    ],
+    "see_also": ["az.plot_trace", "az.plot_rank", "az.bfmi"]
+  },
+  {
+    "name": "az.plot_loo_pit",
+    "signature": "az.plot_loo_pit(data, y=None, ...)",
+    "description": "LOO probability integral transform — calibration check",
+    "gotchas": [
+      "Uniform distribution indicates good calibration",
+      "Requires log_likelihood and posterior_predictive groups",
+      "Part of the ArviZ 1.0 LOO diagnostics suite"
+    ],
+    "see_also": ["az.loo", "az.loo_pit", "az.plot_khat"]
+  },
+  {
+    "name": "az.plot_khat",
+    "signature": "az.plot_khat(data, ...)",
+    "description": "Plot Pareto k-hat values from LOO-CV",
+    "gotchas": [
+      "k > 0.7 = unreliable LOO estimate for that observation",
+      "k > 1.0 = very problematic; try loo_moment_match or reloo",
+      "Pass the LOO result object directly"
+    ],
+    "see_also": ["az.loo", "az.plot_loo_pit", "az.loo_moment_match", "az.reloo"]
+  },
+  {
+    "name": "az.plot_compare",
+    "signature": "az.plot_compare(compare_df, ...)",
+    "description": "Plot model comparison results with error bars",
+    "gotchas": [
+      "Pass the DataFrame returned by az.compare",
+      "Shows ELPD difference with standard error bars"
+    ],
+    "see_also": ["az.compare", "az.loo"]
+  }
+]

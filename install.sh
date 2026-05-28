@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install script for pymc-modeling Claude Code plugin
+# Install script for pymc-modeling plugin (Claude Code and pi)
 # Supports Linux and macOS
 
 set -euo pipefail
@@ -20,10 +20,13 @@ echo "Installing ${PLUGIN_NAME} plugin on ${OS}..."
 # Create plugin directory
 mkdir -p "${PLUGIN_DIR}"
 
-# Directories to link/copy
-DIRS=(".claude-plugin" "skills" "agents" "commands" "hooks" "mcp-server" "scripts")
+# Shared directories (symlinked for Claude Code, also used by pi via project root)
+SHARED_DIRS=("skills" "agents" "commands" "hooks" "mcp-server" "scripts")
 
-for dir in "${DIRS[@]}"; do
+# Claude Code-specific directories
+CLAUDE_DIRS=(".claude-plugin")
+
+for dir in "${SHARED_DIRS[@]}" "${CLAUDE_DIRS[@]}"; do
   if [ -d "${SOURCE_DIR}/${dir}" ]; then
     # Remove existing symlink or directory
     rm -rf "${PLUGIN_DIR}/${dir}"
@@ -32,8 +35,17 @@ for dir in "${DIRS[@]}"; do
   fi
 done
 
+# Install pi extension (pi auto-discovers extensions in ~/.pi/agent/extensions/)
+PI_EXT_DIR="${HOME}/.pi/agent/extensions"
+if [ -d "${SOURCE_DIR}/.pi/extensions/pymc-modeling" ]; then
+  mkdir -p "${PI_EXT_DIR}"
+  rm -rf "${PI_EXT_DIR}/pymc-modeling"
+  ln -sf "${SOURCE_DIR}/.pi/extensions/pymc-modeling" "${PI_EXT_DIR}/pymc-modeling"
+  echo "  Linked pi extension to ${PI_EXT_DIR}/pymc-modeling"
+fi
+
 # Copy top-level files
-for file in README.md LICENSE CHANGELOG.md; do
+for file in README.md AGENTS.md LICENSE CHANGELOG.md; do
   if [ -f "${SOURCE_DIR}/${file}" ]; then
     cp "${SOURCE_DIR}/${file}" "${PLUGIN_DIR}/${file}"
   fi

@@ -98,6 +98,27 @@ for script in "${PLUGIN_DIR}"/scripts/*.sh; do
 done
 echo ""
 
+# Check pi extension
+echo "Pi extension:"
+PI_EXT_DIR="${PLUGIN_DIR}/.pi/extensions/pymc-modeling"
+if [ -d "${PI_EXT_DIR}" ]; then
+  check ".pi/extensions/pymc-modeling/index.ts" test -f "${PI_EXT_DIR}/index.ts"
+  
+  if [ -f "${PI_EXT_DIR}/package.json" ]; then
+    check ".pi/extensions/pymc-modeling/package.json is valid JSON" jq empty "${PI_EXT_DIR}/package.json"
+  else
+    check ".pi/extensions/pymc-modeling/package.json exists" false
+  fi
+  
+  echo "  Pi extension data files:"
+  for data_file in pymc_api.json arviz_api.json patterns.json; do
+    check ".pi/extensions/pymc-modeling/data/${data_file}" test -f "${PI_EXT_DIR}/data/${data_file}"
+  done
+else
+  check ".pi/extensions/pymc-modeling/ directory exists" false
+fi
+echo ""
+
 # Summary
 echo "Results: ${PASS} passed, ${FAIL} failed"
 if [ "$FAIL" -gt 0 ]; then
