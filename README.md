@@ -2,7 +2,7 @@
 
 A PyMC Bayesian modeling assistant. Provides skills, tools, commands, and hooks for probabilistic programming with PyMC 6+, PyTensor 3+, and ArviZ 1.0+.
 
-Works with Claude Code and pi.
+Works with Claude Code, Oh My Pi / pi-compatible harnesses, Codex, Gemini, OpenCode, and generic Agent Skills consumers.
 
 ## Features
 
@@ -14,7 +14,7 @@ Works with Claude Code and pi.
 
 ## Installation
 
-### Claude Code
+### Claude Code marketplace
 
 This plugin is distributed through the `python-analytics-skills` marketplace.
 
@@ -32,31 +32,101 @@ To update to the latest version:
 claude plugin update pymc-modeling
 ```
 
-Or install from source:
+### Source install for one harness
+
+Use the install script when you want local symlinked resources. The script installs **only** the target you name; run it again with another target if you use multiple harnesses.
 
 ```bash
 git clone https://github.com/pymc-labs/pymc-modeling
 cd pymc-modeling
-bash install.sh
+bash install.sh <target>
 ```
 
-### pi
+Targets:
 
-Install from source using the included install script:
+| Target | Harness | Installed resources |
+|--------|---------|---------------------|
+| `claude-code` | Claude Code | Full plugin at `~/.claude/plugins/pymc-modeling` |
+| `omp` | Oh My Pi / pi-compatible | Extension, skills, agents, and commands at `${PI_CODING_AGENT_DIR:-~/.omp/agent}` |
+| `pi` | Legacy pi | Extension at `~/.pi/agent/extensions/pymc-modeling`; skills at `~/.pi/agent/skills` |
+| `codex` | Codex | Skills, agents, and commands at `~/.codex/` |
+| `gemini` | Gemini | Skills, agents, and commands at `~/.gemini/` |
+| `opencode` | OpenCode | Skills and commands at `~/.config/opencode/` |
+| `agents` | Generic Agent Skills consumers | Skills at `~/.agents/skills` |
+
+Examples:
 
 ```bash
-git clone https://github.com/pymc-labs/pymc-modeling
-cd pymc-modeling
-bash install.sh
+bash install.sh claude-code   # Claude Code only
+bash install.sh omp           # Oh My Pi / pi-compatible only
+bash install.sh codex         # Codex only
 ```
 
-This symlinks the pi extension to `~/.pi/agent/extensions/pymc-modeling`, where pi auto-discovers it. The extension provides built-in tools (no MCP server needed), commands, and event handlers.
+Run `bash install.sh --help` to list targets. Set `PI_CODING_AGENT_DIR` before running `bash install.sh omp` if your Oh My Pi-compatible harness uses a non-default agent directory.
 
 ### Validate installation
 
 ```bash
 bash scripts/validate-plugin.sh
 ```
+
+## Usage
+
+After installation, restart your agent harness so it re-discovers skills, commands, tools, hooks, and extensions.
+
+### Ask normally
+
+The assistant should pick up the PyMC skills automatically when your prompt or files mention PyMC, PyTensor, ArviZ, MCMC diagnostics, priors, model comparison, or related Bayesian modeling tasks.
+
+Example prompts:
+
+```text
+Review this PyMC model for shape and identifiability problems.
+Help me choose priors for this hierarchical logistic regression.
+Diagnose these divergences and low ESS values.
+Compare these two models with PSIS-LOO.
+```
+
+### Invoke a skill explicitly
+
+If your harness supports skill commands, call the relevant skill directly:
+
+```text
+/skill:pymc-modeling build a non-centered hierarchical model
+/skill:pymc-testing write pytest tests for this model
+/skill:prior-elicitation choose priors for a positive scale parameter
+/skill:model-evaluation compare these models with LOO
+/skill:pymc-extras use B-splines for a smooth age effect
+```
+
+### Use slash commands
+
+The bundled commands expand into task-specific instructions:
+
+```text
+/pymc-diagnose
+/prior-check
+/shape-check
+/model-compare
+```
+
+### Use tools when available
+
+Claude Code exposes the tools through the `pymc-docs` MCP server. Oh My Pi / pi-compatible harnesses expose the same tools through the TypeScript extension:
+
+```text
+pymc_api_lookup("pm.sample")
+pymc_example_search("hierarchical non-centered")
+pymc_error_lookup("divergences")
+```
+
+### Automatic checks
+
+When hooks or extension events are supported:
+
+- prompts mentioning PyMC get extra PyMC 6 / ArviZ 1.0 context
+- reading `.py` or `.ipynb` files with PyMC/PyTensor/ArviZ imports surfaces a PyMC guidance reminder
+- writing or editing Python files warns about deprecated PyMC/ArviZ patterns
 
 ## What's Included
 
@@ -80,7 +150,7 @@ bash scripts/validate-plugin.sh
 | `pymc_example_search` | Search for PyMC code examples and patterns |
 | `pymc_error_lookup` | Look up common PyMC errors and their fixes |
 
-**pi** provides the same three tools as built-in extension tools (no MCP server required).
+**Oh My Pi / pi-compatible harnesses** provide the same three tools as built-in extension tools (no MCP server required). Other harnesses still get the skills and slash-command prompts when they support those resource types.
 
 ### Commands
 
@@ -93,14 +163,14 @@ bash scripts/validate-plugin.sh
 
 ### Hooks / Event Handlers
 
-| Hook | Claude Code | pi |
-|------|-------------|-----|
+| Behavior | Claude Code | Oh My Pi / pi-compatible |
+|----------|-------------|--------------------------|
 | **Keyword detection** | `suggest-skill.sh` (UserPromptSubmit) | `before_agent_start` event |
 | **Post-write lint** | `pymc-post-write.sh` (PostToolUse Write/Edit) | `tool_result` event handler |
 | **Import detection** | `detect-pymc-stack.sh` (PostToolUse Read) | `tool_result` event handler |
 | **Context preservation** | `hooks.json` PreCompact prompt | `before_agent_start` event |
 
-### Agents (Claude Code only)
+### Agents
 
 | Agent | Purpose |
 |-------|---------|
@@ -108,7 +178,7 @@ bash scripts/validate-plugin.sh
 | **model-review-agent** | Reviews PyMC model code for shape errors, broadcasting issues, identifiability problems, prior scale mismatches |
 | **prior-elicitation-agent** | Interactive prior selection: takes parameter descriptions, suggests priors with justification |
 
-pi provides equivalent functionality through the extension's `before_agent_start` context injection and custom tools.
+Oh My Pi, Codex, Gemini, and other harnesses use these agent files when they support user-level agent discovery. Oh My Pi / pi-compatible harnesses also provide equivalent context injection and custom tools through the extension.
 
 ## Target stack
 
