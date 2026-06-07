@@ -10,7 +10,7 @@
       "hdi_prob= kwarg was removed — use ci_prob + ci_kind='hdi' instead",
       "Also available as DataTree/Dataset accessor: dt.azstats.summary(...)"
     ],
-    "see_also": ["az.plot_trace", "az.plot_posterior", "az.diagnose"]
+    "see_also": ["az.plot_trace_dist", "az.plot_dist", "az.diagnose"]
   },
   {
     "name": "az.diagnose",
@@ -27,10 +27,10 @@
     "signature": "az.ci_in_rope(data, rope, var_names=None, ci_prob=0.89, ci_kind='eti', ...)",
     "description": "Fraction of the credible interval that falls inside a region of practical equivalence",
     "gotchas": [
-      "Replaces the old plot_posterior(rope=...) workflow for summary-style output",
+      "Compute ROPE overlap explicitly or with summary helpers; `az.plot_dist` has no rope= kwarg",
       "rope is a tuple (lower, upper) or dict mapping var_name -> tuple"
     ],
-    "see_also": ["az.plot_posterior", "az.hdi", "az.eti"]
+    "see_also": ["az.plot_dist", "az.hdi", "az.eti"]
   },
   {
     "name": "az.mean",
@@ -177,7 +177,7 @@
     "signature": "az.qds(data, var_names=None, ...)",
     "description": "Quantile-dot summaries (quantile dotplot support data)",
     "gotchas": ["Produces input for dotplot-style visualizations"],
-    "see_also": ["az.plot_posterior"]
+    "see_also": ["az.plot_dist"]
   },
   {
     "name": "az.thin",
@@ -484,37 +484,37 @@
     "see_also": ["az.summary", "az.rhat", "az.ess", "az.hdi", "az.loo"]
   },
   {
-    "name": "az.plot_trace",
-    "signature": "az.plot_trace(data, var_names=None, filter_vars=None, ...)",
-    "description": "Plot parameter traces and marginal posteriors",
+    "name": "az.plot_trace_dist",
+    "signature": "az.plot_trace_dist(data, var_names=None, compact=True, combined=False, ...)",
+    "description": "Plot parameter traces alongside marginal distributions",
     "gotchas": [
       "Essential first diagnostic — check for chain mixing and stationarity",
       "Use var_names to focus on key parameters",
-      "kind='rank_bars' or 'rank_vlines' for rank-based diagnostics"
+      "Use az.plot_rank for rank-based convergence diagnostics"
     ],
-    "see_also": ["az.plot_posterior", "az.plot_rank"]
+    "see_also": ["az.plot_rank", "az.plot_dist"]
   },
   {
-    "name": "az.plot_ppc",
-    "signature": "az.plot_ppc(data, kind='kde', group='posterior_predictive', ...)",
-    "description": "Plot posterior (or prior) predictive checks",
+    "name": "az.plot_ppc_dist",
+    "signature": "az.plot_ppc_dist(data, kind='kde', group='posterior_predictive', num_samples=50, ...)",
+    "description": "Plot posterior (or prior) predictive distribution checks",
     "gotchas": [
       "Requires posterior_predictive (or prior_predictive) group in the DataTree",
-      "kind='kde' for continuous, kind='cumulative' for discrete",
-      "Use observed_rug=True to show individual observations"
+      "kind='kde' for continuous, kind='ecdf' for cumulative checks",
+      "Use group='prior_predictive' for prior predictive checks; use num_samples= to limit predictive draws"
     ],
-    "see_also": ["pm.sample_posterior_predictive", "az.plot_trace"]
+    "see_also": ["pm.sample_posterior_predictive", "az.plot_loo_pit", "az.plot_ppc_pit"]
   },
   {
-    "name": "az.plot_posterior",
-    "signature": "az.plot_posterior(data, var_names=None, ci_prob=0.89, ci_kind='eti', ref_val=None, ...)",
+    "name": "az.plot_dist",
+    "signature": "az.plot_dist(data, var_names=None, ci_prob=0.89, ci_kind='eti', point_estimate=None, ...)",
     "description": "Plot posterior distributions with credible interval and point estimate",
     "gotchas": [
       "ArviZ 1.0: hdi_prob= removed — use ci_prob + ci_kind instead",
-      "ref_val adds a reference line (e.g., null hypothesis)",
-      "Use rope= for a region of practical equivalence band"
+      "ref_val= and rope= are not plot_dist kwargs; add reference visuals to the returned PlotCollection or compute ROPE summaries explicitly",
+      "Use group='prior' to plot prior distributions"
     ],
-    "see_also": ["az.plot_trace", "az.summary", "az.ci_in_rope"]
+    "see_also": ["az.plot_trace_dist", "az.summary", "az.ci_in_rope"]
   },
   {
     "name": "az.plot_forest",
@@ -526,7 +526,7 @@
       "model_names parameter for comparing multiple models",
       "ArviZ 1.0: hdi_prob= replaced by ci_prob + ci_kind"
     ],
-    "see_also": ["az.plot_posterior", "az.summary"]
+    "see_also": ["az.plot_dist", "az.summary"]
   },
   {
     "name": "az.plot_pair",
@@ -537,28 +537,38 @@
       "Essential for diagnosing funnel geometry in hierarchical models",
       "Use kind='hexbin' for many draws to avoid overplotting"
     ],
-    "see_also": ["az.plot_trace", "az.plot_posterior"]
+    "see_also": ["az.plot_trace_dist", "az.plot_dist"]
   },
   {
     "name": "az.plot_rank",
-    "signature": "az.plot_rank(data, var_names=None, kind='bars', ...)",
+    "signature": "az.plot_rank(data, var_names=None, envelope_prob=None, ...)",
     "description": "Rank plot for visual convergence diagnostic",
     "gotchas": [
-      "Uniform ranks indicate good mixing; non-uniform indicates convergence issues",
+      "Uniform rank ECDFs indicate good mixing; deviations indicate convergence issues",
       "More sensitive than trace plots for detecting poor mixing"
     ],
-    "see_also": ["az.plot_trace", "az.plot_ess"]
+    "see_also": ["az.plot_trace_dist", "az.plot_ess"]
   },
   {
     "name": "az.plot_ess",
     "signature": "az.plot_ess(data, var_names=None, kind='local', ...)",
-    "description": "Plot effective sample size across quantiles or iterations",
+    "description": "Plot effective sample size across local intervals or quantiles",
     "gotchas": [
       "kind='local' shows ESS for quantile estimation",
       "kind='quantile' shows ESS at each quantile",
       "Low ESS in tails may indicate poor exploration"
     ],
     "see_also": ["az.plot_rank", "az.summary", "az.ess"]
+  },
+  {
+    "name": "az.plot_ess_evolution",
+    "signature": "az.plot_ess_evolution(data, var_names=None, n_points=20, ...)",
+    "description": "Plot estimated effective sample size as draws accumulate",
+    "gotchas": [
+      "ESS should grow roughly linearly with more draws",
+      "Flat or erratic evolution indicates poor mixing or autocorrelation"
+    ],
+    "see_also": ["az.plot_ess", "az.summary", "az.ess"]
   },
   {
     "name": "az.plot_energy",
@@ -568,11 +578,11 @@
       "Large gap between marginal and transition energy indicates poor exploration",
       "Requires sample_stats group with energy variable; pair with az.bfmi"
     ],
-    "see_also": ["az.plot_trace", "az.plot_rank", "az.bfmi"]
+    "see_also": ["az.plot_trace_dist", "az.plot_rank", "az.bfmi"]
   },
   {
     "name": "az.plot_loo_pit",
-    "signature": "az.plot_loo_pit(data, y=None, ...)",
+    "signature": "az.plot_loo_pit(data, var_names=None, group='posterior_predictive', ...)",
     "description": "LOO probability integral transform — calibration check",
     "gotchas": [
       "Uniform distribution indicates good calibration",

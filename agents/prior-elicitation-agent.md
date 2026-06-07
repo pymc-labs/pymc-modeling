@@ -99,7 +99,7 @@ with model:
 
 # Visualize prior predictions
 import arviz as az
-az.plot_ppc(dt, group="prior", kind="cumulative")
+az.plot_ppc_dist(dt, group="prior_predictive", kind="ecdf")
 
 # Check: Are prior predictions in a plausible range?
 prior_y = prior_pred["prior_predictive"]["y"].values

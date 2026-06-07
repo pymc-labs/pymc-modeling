@@ -97,7 +97,7 @@ In mixture models, the likelihood is invariant to permutations of component labe
 
 ```python
 # Trace plots show "switching" between modes
-az.plot_trace(idata, var_names=["mu"])
+az.plot_trace_dist(idata, var_names=["mu"])
 
 # Pair plots show symmetric clusters
 az.plot_pair(idata, var_names=["mu"], coords={"component": [0, 1]})
@@ -169,7 +169,7 @@ with model:
     idata.update(pm.sample_posterior_predictive(idata))
 
 # This is unaffected by label switching
-az.plot_ppc(idata)
+az.plot_ppc_dist(idata)
 ```
 
 ---
@@ -234,7 +234,7 @@ with pm.Model() as marginal_model:
 
 ```python
 # 1. Trace plots should NOT show "switching" patterns
-az.plot_trace(idata, var_names=["mu", "w"])
+az.plot_trace_dist(idata, var_names=["mu", "w"])
 
 # 2. Rank plots should be uniform (not bimodal)
 az.plot_rank(idata, var_names=["mu"])
@@ -251,10 +251,10 @@ with model:
     idata.update(pm.sample_posterior_predictive(idata))
 
 # Check if mixture captures data distribution shape
-az.plot_ppc(idata, kind="kde")
+az.plot_ppc_dist(idata, kind="kde")
 
 # For multimodal data, cumulative is often clearer
-az.plot_ppc(idata, kind="cumulative")
+az.plot_ppc_dist(idata, kind="ecdf")
 ```
 
 ### Model Selection for Number of Components
@@ -284,7 +284,7 @@ az.plot_compare(comparison)
 
 ```python
 # Posterior distribution of component means
-az.plot_posterior(idata, var_names=["mu"])
+az.plot_dist(idata, var_names=["mu"])
 
 # Check overlap between components
 # Well-separated components have non-overlapping HDIs

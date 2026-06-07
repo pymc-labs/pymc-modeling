@@ -6,7 +6,7 @@
 set -euo pipefail
 
 input=$(cat)
-prompt=$(echo "$input" | jq -r '.prompt // empty' 2>/dev/null || true)
+prompt=$(echo "$input" | jq -r '.prompt // .user_prompt // empty' 2>/dev/null || true)
 
 if [ -z "$prompt" ]; then
   exit 0
@@ -118,6 +118,7 @@ fi
 if [ ${#directives[@]} -gt 0 ]; then
   combined=$(printf '%s ' "${directives[@]}")
   jq -n --arg ctx "$combined" '{
+    "systemMessage": $ctx,
     "hookSpecificOutput": {
       "hookEventName": "UserPromptSubmit",
       "additionalContext": $ctx

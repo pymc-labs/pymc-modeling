@@ -57,7 +57,7 @@ summary = check_sampling(idata)
 
 ```python
 # 1. Trace plots (mixing and stationarity)
-az.plot_trace(idata, compact=True)
+az.plot_trace_dist(idata, compact=True)
 
 # 2. Rank plots (more sensitive than traces)
 az.plot_rank(idata, var_names=["beta", "sigma"])
@@ -186,7 +186,7 @@ If divergences persist after trying above fixes:
 summary = az.summary(idata)
 print(summary[summary["r_hat"] > 1.01])
 
-az.plot_trace(idata, var_names=["problem_param"], compact=False)
+az.plot_trace_dist(idata, var_names=["problem_param"], compact=False)
 ```
 
 **Causes and fixes**:
@@ -201,7 +201,7 @@ az.plot_trace(idata, var_names=["problem_param"], compact=False)
 
 **Diagnostic**:
 ```python
-az.plot_ess(idata, var_names=["beta"], kind="evolution")
+az.plot_ess_evolution(idata, var_names=["beta"])
 az.plot_autocorr(idata, var_names=["beta"])
 ```
 
@@ -219,8 +219,8 @@ az.plot_autocorr(idata, var_names=["beta"])
 with model:
     idata.update(pm.sample_posterior_predictive(idata))
 
-az.plot_ppc(idata, kind="cumulative")
-az.plot_loo_pit(idata, y="y")
+az.plot_ppc_dist(idata, kind="ecdf")
+az.plot_loo_pit(idata, var_names=["y"])
 ```
 
 **Causes and fixes**:

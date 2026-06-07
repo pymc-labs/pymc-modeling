@@ -160,7 +160,7 @@ prior_predictive = prior_pred["prior_predictive"].ds
 ### What to Check
 
 1. **Range of predictions**: Do simulated outcomes cover the plausible data range?
-   - Plot: `az.plot_ppc(prior_pred, group="prior", kind="cumulative")`
+   - Plot: `az.plot_ppc_dist(prior_pred, group="prior_predictive", kind="ecdf")`
 2. **Impossible values**: Are any simulated outcomes physically impossible?
    - Negative counts, probabilities outside [0,1], negative durations
 3. **Scale**: Is the prior predictive spread reasonable relative to the data?

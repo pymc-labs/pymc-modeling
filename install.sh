@@ -7,6 +7,26 @@ set -euo pipefail
 PLUGIN_NAME="pymc-modeling"
 SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+
+PLUGIN_SKILLS=(
+  model-evaluation
+  prior-elicitation
+  pymc-extras
+  pymc-modeling
+  pymc-testing
+)
+PLUGIN_AGENTS=(
+  diagnostics-agent.md
+  model-review-agent.md
+  prior-elicitation-agent.md
+)
+PLUGIN_COMMANDS=(
+  model-compare.md
+  prior-check.md
+  pymc-diagnose.md
+  shape-check.md
+)
+
 # Detect OS
 case "$(uname -s)" in
   Linux*)  OS="Linux" ;;
@@ -30,6 +50,16 @@ Targets:
 EOF
 }
 
+remove_path() {
+  local target_path="$1"
+  local label="$2"
+
+  if [ -e "${target_path}" ] || [ -L "${target_path}" ]; then
+    rm -rf "${target_path}"
+    echo "  Removed existing ${label} at ${target_path}"
+  fi
+}
+
 link_path() {
   local source_path="$1"
   local target_path="$2"
@@ -40,9 +70,54 @@ link_path() {
   fi
 
   mkdir -p "$(dirname "${target_path}")"
-  rm -rf "${target_path}"
+  remove_path "${target_path}" "${label}"
   ln -s "${source_path}" "${target_path}"
   echo "  Linked ${label} -> ${target_path}"
+}
+
+uninstall_named_children() {
+  local target_dir="$1"
+  local label="$2"
+  shift 2
+  local name
+
+  for name in "$@"; do
+    remove_path "${target_dir}/${name}" "${label}/${name}"
+  done
+}
+
+uninstall_claude_code_plugin() {
+  remove_path "${HOME}/.claude/plugins/${PLUGIN_NAME}" "Claude Code plugin"
+}
+
+uninstall_extension() {
+  local agent_dir="$1"
+  local label="$2"
+
+  remove_path "${agent_dir}/extensions/${PLUGIN_NAME}" "${label} extension"
+}
+
+uninstall_native_resources() {
+  local agent_dir="$1"
+  local label="$2"
+
+  uninstall_named_children "${agent_dir}/skills" "${label} skills" "${PLUGIN_SKILLS[@]}"
+  uninstall_named_children "${agent_dir}/agents" "${label} agents" "${PLUGIN_AGENTS[@]}"
+  uninstall_named_children "${agent_dir}/commands" "${label} commands" "${PLUGIN_COMMANDS[@]}"
+}
+
+uninstall_skill_resources() {
+  local skills_dir="$1"
+  local label="$2"
+
+  uninstall_named_children "${skills_dir}" "${label} skills" "${PLUGIN_SKILLS[@]}"
+}
+
+uninstall_command_resources() {
+  local commands_dir="$1"
+  local label="$2"
+
+  uninstall_named_children "${commands_dir}" "${label} commands" "${PLUGIN_COMMANDS[@]}"
 }
 
 link_children() {
@@ -142,33 +217,43 @@ echo "Installing ${PLUGIN_NAME} resources for ${TARGET} on ${OS}..."
 
 case "${TARGET}" in
   claude-code | claude_code | claude)
+    uninstall_claude_code_plugin
     install_claude_code_plugin
     INSTALLED_TARGET="Claude Code plugin: ${HOME}/.claude/plugins/${PLUGIN_NAME}"
     ;;
   omp | oh-my-pi | oh_my_pi)
+    uninstall_extension "${OMP_AGENT_DIR}" "Oh My Pi"
+    uninstall_native_resources "${OMP_AGENT_DIR}" "Oh My Pi"
     install_extension "${OMP_AGENT_DIR}" "Oh My Pi"
     install_native_resources "${OMP_AGENT_DIR}" "Oh My Pi"
     INSTALLED_TARGET="Oh My Pi extension/resources: ${OMP_AGENT_DIR}"
     ;;
   pi | legacy-pi | legacy_pi)
+    uninstall_extension "${LEGACY_PI_AGENT_DIR}" "legacy pi"
+    uninstall_skill_resources "${LEGACY_PI_AGENT_DIR}/skills" "legacy pi"
     install_extension "${LEGACY_PI_AGENT_DIR}" "legacy pi"
     install_skill_resources "${LEGACY_PI_AGENT_DIR}/skills" "legacy pi"
     INSTALLED_TARGET="legacy pi extension/resources: ${LEGACY_PI_AGENT_DIR}"
     ;;
   codex)
+    uninstall_native_resources "${HOME}/.codex" "Codex"
     install_native_resources "${HOME}/.codex" "Codex"
     INSTALLED_TARGET="Codex user resources: ${HOME}/.codex"
     ;;
   gemini)
+    uninstall_native_resources "${HOME}/.gemini" "Gemini"
     install_native_resources "${HOME}/.gemini" "Gemini"
     INSTALLED_TARGET="Gemini user resources: ${HOME}/.gemini"
     ;;
   opencode)
+    uninstall_skill_resources "${HOME}/.config/opencode/skills" "OpenCode"
+    uninstall_command_resources "${HOME}/.config/opencode/commands" "OpenCode"
     install_skill_resources "${HOME}/.config/opencode/skills" "OpenCode"
     install_command_resources "${HOME}/.config/opencode/commands" "OpenCode"
     INSTALLED_TARGET="OpenCode resources: ${HOME}/.config/opencode"
     ;;
   agents | agent-skills | agent_skills)
+    uninstall_skill_resources "${HOME}/.agents/skills" "generic agents"
     install_skill_resources "${HOME}/.agents/skills" "generic agents"
     INSTALLED_TARGET="generic Agent Skills: ${HOME}/.agents/skills"
     ;;

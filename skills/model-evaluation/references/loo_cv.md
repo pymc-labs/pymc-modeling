@@ -144,7 +144,7 @@ A large p_loo relative to the number of observations signals potential overfitti
 ## LOO-PIT (Probability Integral Transform)
 
 ```python
-az.plot_loo_pit(dt, y="y")
+az.plot_loo_pit(dt, var_names=["y"])
 ```
 
 The LOO-PIT plot shows the distribution of leave-one-out probability integral transform values. Under a well-calibrated model, these should be uniform.

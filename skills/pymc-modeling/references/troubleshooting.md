@@ -570,7 +570,7 @@ Always check prior implications before fitting:
 with model:
     prior_pred = pm.sample_prior_predictive()
 
-az.plot_ppc(prior_pred, group="prior")
+az.plot_ppc_dist(prior_pred, group="prior_predictive")
 ```
 
 If prior predictive range is implausible (negative counts, probabilities > 1, extreme values), adjust priors before proceeding.
@@ -633,18 +633,14 @@ with pm.Model(coords=coords) as model:
 
 ### ArviZ plot_ppc Parameter Names
 
-ArviZ's `plot_ppc()` function does not accept `num_pp_samples` parameter. This parameter was removed in recent versions.
+ArviZ's `plot_ppc_dist()` function uses `num_samples=`, not the old `num_pp_samples=` parameter.
 
 ```python
 # ERROR: Unexpected keyword argument
-az.plot_ppc(idata, kind="cumulative", num_pp_samples=100)  # TypeError
+az.plot_ppc_dist(idata, kind="ecdf", num_pp_samples=100)  # TypeError
 
-# FIX: Remove num_pp_samples parameter
-az.plot_ppc(idata, kind="cumulative")  # OK
-
-# Subset to fewer draws if needed
-idata_subset = idata.sel(draw=slice(0, 100))
-az.plot_ppc(idata_subset, kind="cumulative")
+# FIX: Use num_samples for the number of predictive draws
+az.plot_ppc_dist(idata, kind="ecdf", num_samples=100)  # OK
 ```
 
 ### pm.MutableData / pm.ConstantData Deprecation
@@ -795,14 +791,10 @@ az.plot_pair(idata, var_names=["alpha", "beta"], divergences=True)
 
 ```python
 # Compare prior and posterior
-az.plot_dist_comparison(idata, var_names=["sigma"])
+az.plot_prior_posterior(idata, var_names=["sigma"])
 
 # Visual comparison for all parameters
-fig, axes = plt.subplots(1, len(param_names), figsize=(4*len(param_names), 3))
-for ax, var in zip(axes, param_names):
-    az.plot_density(idata["prior"], var_names=[var], ax=ax, colors="C0", label="Prior")
-    az.plot_density(idata["posterior"], var_names=[var], ax=ax, colors="C1", label="Posterior")
-    ax.set_title(var)
+az.plot_prior_posterior(idata, var_names=param_names)
 ```
 
 ### Common Scenarios

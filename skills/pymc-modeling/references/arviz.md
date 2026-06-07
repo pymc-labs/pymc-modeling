@@ -181,18 +181,17 @@ summary = az.summary(idata, ci_prob=0.94, ci_kind="hdi")  # HDI if you prefer
 | `ess_tail` | > 400 | > 100 | < 100 |
 | `mcse_mean` | < 5% of SD | < 10% of SD | > 10% of SD |
 
-### az.plot_trace: Visual Convergence Check
+### az.plot_trace_dist: Visual Convergence Check
 
 ```python
 # Basic trace plot
-az.plot_trace(idata, var_names=["beta", "sigma"])
+az.plot_trace_dist(idata, var_names=["beta", "sigma"])
 
 # Compact mode for many parameters
-az.plot_trace(idata, compact=True, combined=True)
+az.plot_trace_dist(idata, compact=True, combined=True)
 
 # Rank-normalized traces (more sensitive to problems)
-az.plot_trace(idata, kind="rank_bars")
-az.plot_trace(idata, kind="rank_vlines")
+az.plot_rank(idata, var_names=["beta"])
 ```
 
 **What to look for:**
@@ -248,7 +247,7 @@ az.plot_rank(idata, var_names=["beta", "sigma"])
 
 ```python
 # How ESS grows with more draws
-az.plot_ess(idata, var_names=["beta"], kind="evolution")
+az.plot_ess_evolution(idata, var_names=["beta"])
 
 # ESS across the distribution (quantile-specific)
 az.plot_ess(idata, var_names=["beta"], kind="quantile")
@@ -328,7 +327,7 @@ for var in rhat_values.data_vars:
 
 Convergence doesn't mean the model is good—only that MCMC worked. Now assess whether the model actually fits the data.
 
-### az.plot_ppc: Posterior Predictive Checks
+### az.plot_ppc_dist: Posterior Predictive Checks
 
 The most important model criticism tool. Does the model generate data that looks like the observed data?
 
@@ -338,17 +337,17 @@ with model:
     idata.update(pm.sample_posterior_predictive(idata))
 
 # Density overlay (default)
-az.plot_ppc(idata, kind="kde")
+az.plot_ppc_dist(idata, kind="kde")
 
 # Cumulative distribution (better for systematic deviations)
-az.plot_ppc(idata, kind="cumulative")
+az.plot_ppc_dist(idata, kind="ecdf")
 
-# Scatter plot (for continuous outcomes)
-az.plot_ppc(idata, kind="scatter")
+# Dot plot (for continuous outcomes)
+az.plot_ppc_dist(idata, kind="dot")
 
 # Subset draws if needed for speed
 idata_subset = idata.sel(draw=slice(0, 100))
-az.plot_ppc(idata_subset, kind="cumulative")
+az.plot_ppc_dist(idata_subset, kind="ecdf")
 ```
 
 **What to look for (density/KDE):**
@@ -367,10 +366,10 @@ Check fit across subgroups:
 
 ```python
 # PPC by group (if using coords)
-az.plot_ppc(idata, kind="cumulative", flatten=[])
+az.plot_ppc_dist(idata, kind="ecdf", cols=["group"])
 
 # For specific observed variable
-az.plot_ppc(idata, var_names=["y_obs"], kind="kde")
+az.plot_ppc_dist(idata, var_names=["y_obs"], kind="kde")
 ```
 
 ### Custom Posterior Predictive Checks
@@ -410,7 +409,7 @@ plt.legend()
 The LOO-PIT (Leave-One-Out Probability Integral Transform) checks calibration: are the posterior predictive quantiles uniformly distributed?
 
 ```python
-az.plot_loo_pit(idata, y="y")
+az.plot_loo_pit(idata, var_names=["y"])
 ```
 
 **Interpretation:**
@@ -421,14 +420,14 @@ az.plot_loo_pit(idata, y="y")
 
 **Expert insight**: LOO-PIT is more sensitive than PPC for detecting calibration issues because it evaluates each observation using a model fit without that observation.
 
-### az.plot_bpv: Bayesian p-values
+### Posterior Predictive PIT and Test Statistics
 
 ```python
-# Histogram of Bayesian p-values
-az.plot_bpv(idata, kind="p_value")
+# PIT Δ-ECDF check
+az.plot_ppc_pit(idata)
 
 # Using a test statistic
-az.plot_bpv(idata, kind="t_stat")
+az.plot_ppc_tstat(idata, t_stat="median")
 ```
 
 **Interpretation:**
@@ -469,28 +468,22 @@ plt.ylabel("Residuals")
 
 Only after Phases 1-3 pass should you interpret parameter estimates.
 
-### az.plot_posterior: Marginal Summaries
+### az.plot_dist: Marginal Summaries
 
 ```python
 # Basic posterior summary
-az.plot_posterior(idata, var_names=["beta", "sigma"])
-
-# With reference value (null hypothesis)
-az.plot_posterior(idata, var_names=["beta"], ref_val=0)
-
-# With ROPE (Region of Practical Equivalence)
-az.plot_posterior(idata, var_names=["beta"], rope=[-0.1, 0.1])
+az.plot_dist(idata, var_names=["beta", "sigma"])
 
 # Custom credible interval (ArviZ 1.0: ci_prob / ci_kind)
-az.plot_posterior(idata, ci_prob=0.95)
-az.plot_posterior(idata, ci_prob=0.89, ci_kind="hdi")
+az.plot_dist(idata, ci_prob=0.95)
+az.plot_dist(idata, ci_prob=0.89, ci_kind="hdi")
 
 # Point estimate options
-az.plot_posterior(idata, point_estimate="mode")  # or "mean", "median"
+az.plot_dist(idata, point_estimate="mode")  # or "mean", "median"
 ```
 
-**ROPE interpretation:**
-- Report % of posterior inside ROPE
+**ROPE interpretation** (compute explicitly; `az.plot_dist` has no `rope=` kwarg):
+- `in_rope = ((idata["posterior"]["beta"] > -0.1) & (idata["posterior"]["beta"] < 0.1)).mean()`
 - If > 95% inside ROPE: Practically equivalent to null
 - If < 5% inside ROPE: Practically different from null
 
@@ -713,7 +706,7 @@ prob_gt_threshold = (posterior["beta"] > threshold).mean(dim=["chain", "draw"])
 # Posterior contrasts
 if "group" in posterior["alpha"].dims:
     contrast = posterior["alpha"].sel(group="treatment") - posterior["alpha"].sel(group="control")
-    az.plot_posterior(contrast.to_dataset(name="treatment_effect"))
+    az.plot_dist(contrast.to_dataset(name="treatment_effect"))
 ```
 
 ### Custom Summary Functions
@@ -785,7 +778,7 @@ idata_combined = az.concat([idata1, idata2], dim="chain")
 **Diagnosis:**
 ```python
 az.plot_pair(idata, var_names=["theta"], marginals=True)
-az.plot_trace(idata, var_names=["theta"], compact=False)
+az.plot_trace_dist(idata, var_names=["theta"], compact=False)
 ```
 
 **Causes and fixes:**
@@ -832,7 +825,7 @@ az.plot_ess(idata, kind="quantile")  # Check ESS at different quantiles
 
 **Diagnosis:**
 ```python
-az.plot_posterior(idata, var_names=["sigma"])
+az.plot_dist(idata, var_names=["sigma"])
 ```
 
 **Interpretation:**
@@ -877,46 +870,35 @@ az.rcParams["stats.ic_scale"] = "log"  # for LOO
 ### Figure Sizing and Layout
 
 ```python
-# Control figure size
-fig, axes = plt.subplots(2, 2, figsize=(10, 8))
-az.plot_posterior(idata, var_names=["beta"], ax=axes.flatten())
-plt.tight_layout()
-
-# Or let ArviZ handle it
-axes = az.plot_posterior(idata, var_names=["beta"], figsize=(12, 4))
+# Let PlotCollection handle layout and sizing
+az.plot_dist(
+    idata,
+    var_names=["beta"],
+    col_wrap=2,
+    figure_kwargs={"figsize": (10, 8)},
+)
 ```
 
-### Combining Multiple Plots
+### Related Diagnostic Plots
 
 ```python
-import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
+# Trace plus marginal distribution
+trace_pc = az.plot_trace_dist(idata, var_names=["beta"], compact=True, combined=True)
 
-fig = plt.figure(figsize=(14, 10))
-gs = GridSpec(2, 2, figure=fig)
+# Posterior marginal
+dist_pc = az.plot_dist(idata, var_names=["beta"])
 
-# Trace plot
-ax1 = fig.add_subplot(gs[0, :])
-az.plot_trace(idata, var_names=["beta"], compact=True, combined=True, ax=ax1)
-
-# Posterior
-ax2 = fig.add_subplot(gs[1, 0])
-az.plot_posterior(idata, var_names=["beta"], ax=ax2)
-
-# PPC
-ax3 = fig.add_subplot(gs[1, 1])
-az.plot_ppc(idata, kind="cumulative", ax=ax3)
-
-plt.tight_layout()
+# Posterior predictive distribution
+ppc_pc = az.plot_ppc_dist(idata, kind="ecdf")
 ```
 
 ### Saving Figures
 
 ```python
 # Save with high resolution
-fig = az.plot_posterior(idata, var_names=["beta"])
-plt.savefig("posterior.png", dpi=300, bbox_inches="tight")
-plt.savefig("posterior.pdf", bbox_inches="tight")  # Vector format
+pc = az.plot_dist(idata, var_names=["beta"])
+pc.savefig("posterior.png", dpi=300, bbox_inches="tight")
+pc.savefig("posterior.pdf", bbox_inches="tight")  # Vector format
 ```
 
 ### LaTeX Labels
@@ -926,7 +908,7 @@ import matplotlib.pyplot as plt
 plt.rcParams["text.usetex"] = True
 
 # Use LaTeX in labels
-az.plot_posterior(
+az.plot_dist(
     idata,
     var_names=["beta"],
     labeller=az.labels.MapLabeller(var_name_map={"beta": r"$\beta$"})
@@ -939,16 +921,16 @@ az.plot_posterior(
 
 | Question | Plot | Function |
 |----------|------|----------|
-| Did MCMC converge? | Trace, Rank | `plot_trace`, `plot_rank` |
+| Did MCMC converge? | Trace, Rank | `plot_trace_dist`, `plot_rank` |
 | Are there divergences? | Pair with divergences | `plot_pair(..., divergences=True)` |
-| Is ESS adequate? | ESS evolution | `plot_ess(kind="evolution")` |
+| Is ESS adequate? | ESS evolution | `plot_ess_evolution` |
 | Is mixing efficient? | Autocorrelation | `plot_autocorr` |
 | Is HMC healthy? | Energy | `plot_energy` |
-| Does model fit? | PPC | `plot_ppc` |
+| Does model fit? | PPC | `plot_ppc_dist` |
 | Is model calibrated? | LOO-PIT | `plot_loo_pit` |
-| What are the estimates? | Posterior | `plot_posterior` |
+| What are the estimates? | Posterior | `plot_dist` |
 | Compare group effects? | Forest | `plot_forest` |
 | Parameters correlated? | Pair | `plot_pair` |
 | Which model is best? | Compare | `plot_compare` |
 | Which points influential? | Pareto k | `plot_khat` |
-| Prior sensible? | Prior predictive | `plot_ppc(..., group="prior")` |
+| Prior sensible? | Prior predictive | `plot_ppc_dist(..., group="prior_predictive")` |

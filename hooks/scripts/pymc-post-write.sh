@@ -72,6 +72,27 @@ if echo "$content" | grep -qE 'az\.waic\('; then
   warnings+=("az.waic is deprecated in ArviZ 1.0. Prefer az.loo for model comparison; use az.loo_metrics / az.loo_expectations for predictive metrics.")
 fi
 
+# Check for legacy ArviZ plotting aliases replaced by arviz-plots.
+if echo "$content" | grep -qE 'az\.(plot_posterior|plot_density)\('; then
+  warnings+=("ArviZ plotting changed: use az.plot_dist(...) instead of az.plot_posterior(...) or az.plot_density(...). Check kwargs; ref_val= and rope= are not plot_dist kwargs.")
+fi
+
+if echo "$content" | grep -qE 'az\.plot_dist_comparison\('; then
+  warnings+=("ArviZ plotting changed: use az.plot_prior_posterior(...) instead of az.plot_dist_comparison(...).")
+fi
+
+if echo "$content" | grep -qE 'az\.plot_bpv\('; then
+  warnings+=("ArviZ plotting changed: use az.plot_ppc_pit(...) for PIT checks or az.plot_ppc_tstat(...) for test-statistic PPCs instead of az.plot_bpv(...).")
+fi
+
+if echo "$content" | grep -qE 'az\.plot_ppc\('; then
+  warnings+=("ArviZ plotting changed: use az.plot_ppc_dist(...) instead of az.plot_ppc(...); cumulative PPCs use kind=\"ecdf\", and prior checks use group=\"prior_predictive\".")
+fi
+
+if echo "$content" | grep -qE 'az\.plot_trace\('; then
+  warnings+=("ArviZ plotting changed: use az.plot_trace_dist(...) for density+trace diagnostics or az.plot_rank(...) for rank diagnostics instead of legacy az.plot_trace(...).")
+fi
+
 # Check for PyTensor test_value / compute_test_value (removed in PyTensor 3)
 if echo "$content" | grep -qE 'tag\.test_value|compute_test_value'; then
   warnings+=("tag.test_value and compute_test_value were removed in PyTensor 3. Call the .eval() method on a symbolic variable with a point-dict (e.g. var.eval({x: x_val})) instead.")

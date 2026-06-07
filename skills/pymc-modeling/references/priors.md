@@ -291,7 +291,7 @@ with model:
 
 # Visualize prior predictive distribution
 import arviz as az
-az.plot_ppc(prior_pred, group="prior", kind="cumulative")
+az.plot_ppc_dist(prior_pred, group="prior_predictive", kind="ecdf")
 
 # Numerical summary
 prior_y = prior_pred["prior_predictive"]["y"].values.flatten()
@@ -358,7 +358,7 @@ Occurs when data substantially contradicts the prior. Can detect using prior-pos
 
 ```python
 # Compare prior and posterior
-az.plot_dist_comparison(trace, var_names=["beta"])
+az.plot_prior_posterior(idata, var_names=["beta"])
 
 # Large divergence suggests prior-likelihood conflict
 prior_mean = 0  # from prior specification

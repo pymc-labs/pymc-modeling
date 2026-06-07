@@ -197,7 +197,7 @@ Bayes factors compare marginal likelihoods. Conceptually different from LOO (pre
 LOO probability integral transform checks if the model is calibrated:
 
 ```python
-az.plot_loo_pit(dt, y="observed_data_name")
+az.plot_loo_pit(dt, var_names=["observed_data_name"])
 ```
 
 ### Interpretation
@@ -297,7 +297,7 @@ if (loo.pareto_k > 0.7).any():
     loo = az.loo_moment_match(dt)
 
 # 4. LOO-PIT calibration
-az.plot_loo_pit(dt, y="y")
+az.plot_loo_pit(dt, var_names=["y"])
 
 # 5. Compare models
 comparison = az.compare({"model_a": dt_a, "model_b": dt_b})

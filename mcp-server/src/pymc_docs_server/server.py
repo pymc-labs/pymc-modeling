@@ -60,7 +60,7 @@ ERROR_PATTERNS = [
             "1. Run more chains and draws: pm.sample(draws=2000, tune=2000, chains=4)\n"
             "2. Check for multimodality in the posterior\n"
             "3. Use more informative priors\n"
-            "4. Check az.plot_trace(idata) for chain mixing issues\n"
+            "4. Check az.plot_trace_dist(idata) for chain mixing issues\n"
             "5. Try different initialization: pm.sample(initvals=...)"
         ),
     },
@@ -204,7 +204,7 @@ ERROR_PATTERNS = [
             "ArviZ 1.0 removed InferenceData entirely; pm.sample() now returns xarray.DataTree.\n"
             "Attribute access is gone — always use bracket access:\n"
             '  dt["posterior"]       (was idata.posterior)\n'
-            '  dt["sample_stats"]    (was idata.sample_stats)\n'
+            '  dt["sample_stats"]    (not attribute access)\n'
             "  dt.children.keys()     (was idata.groups())\n"
             '  "posterior" in dt     (was hasattr(idata, "posterior"))\n'
             'Default CI: ci_prob=0.89, ci_kind="eti" (was hdi_prob=0.94).\n'
@@ -347,8 +347,8 @@ def pymc_error_lookup(error_message: str) -> str:
             f"No specific error pattern found for '{error_message}'.\n\n"
             "General debugging tips:\n"
             "1. Check az.summary(idata) for r_hat and ESS\n"
-            "2. Look at az.plot_trace(idata) for mixing\n"
-            "3. Check for divergences in idata.sample_stats\n"
+            "2. Look at az.plot_trace_dist(idata) for mixing\n"
+            '3. Check for divergences in idata["sample_stats"]\n'
             "4. Try simplifying the model first, then add complexity\n"
             "5. Use pm.model_to_graphviz(model) to verify structure"
         )

@@ -51,9 +51,9 @@ if len(ess_tail_bad) > 0:
     print(f"\nLow ESS tail (<400) for: {list(ess_tail_bad.index)}")
 ```
 
-**Trace and rank plots:**
+**Rank plot:**
 ```python
-az.plot_trace(dt, kind="rank_vlines")
+az.plot_rank(dt)
 ```
 
 **Energy diagnostic:**

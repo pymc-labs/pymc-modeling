@@ -245,9 +245,9 @@ BART uses a particle Gibbs sampler, so standard MCMC diagnostics apply:
 ```python
 import arviz as az
 
-az.plot_trace(idata, var_names=["sigma"])
+az.plot_trace_dist(idata, var_names=["sigma"])
 az.summary(idata, var_names=["sigma"])
 
 # For BART predictions, check posterior predictive
-az.plot_ppc(idata)
+az.plot_ppc_dist(idata)
 ```

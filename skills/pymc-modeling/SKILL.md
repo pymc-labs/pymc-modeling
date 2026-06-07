@@ -141,7 +141,7 @@ summary = az.summary(idata, var_names=["~offset"])  # exclude auxiliary
 print(summary[["mean", "sd", "eti_5.5%", "eti_94.5%", "ess_bulk", "ess_tail", "r_hat"]])
 
 # 3. Visual convergence check
-az.plot_trace(idata, compact=True)
+az.plot_trace_dist(idata, compact=True)
 az.plot_rank(idata, var_names=["beta", "sigma"])
 ```
 
@@ -155,7 +155,7 @@ az.plot_rank(idata, var_names=["beta", "sigma"])
 
 ```python
 # ESS evolution (should grow linearly)
-az.plot_ess(idata, kind="evolution")
+az.plot_ess_evolution(idata)
 
 # Energy diagnostic (HMC health)
 az.plot_energy(idata)
@@ -172,10 +172,10 @@ with model:
     idata.update(pm.sample_posterior_predictive(idata))
 
 # Does the model capture the data?
-az.plot_ppc(idata, kind="cumulative")
+az.plot_ppc_dist(idata, kind="ecdf")
 
 # Calibration check
-az.plot_loo_pit(idata, y="y")
+az.plot_loo_pit(idata, var_names=["y"])
 ```
 
 **Critical rule**: Never interpret parameters until Phases 1-3 pass.
@@ -184,7 +184,7 @@ az.plot_loo_pit(idata, y="y")
 
 ```python
 # Posterior summaries
-az.plot_posterior(idata, var_names=["beta"], ref_val=0)
+az.plot_dist(idata, var_names=["beta"])
 
 # Forest plots for hierarchical parameters
 az.plot_forest(idata, var_names=["alpha"], combined=True)
@@ -206,7 +206,7 @@ Always check prior implications before fitting:
 with model:
     prior_pred = pm.sample_prior_predictive(draws=500)
 
-az.plot_ppc(prior_pred, group="prior", kind="cumulative")
+az.plot_ppc_dist(prior_pred, group="prior_predictive", kind="ecdf")
 prior_y = prior_pred["prior_predictive"]["y"].values.flatten()
 print(f"Prior predictive range: [{prior_y.min():.1f}, {prior_y.max():.1f}]")
 ```
@@ -219,8 +219,8 @@ print(f"Prior predictive range: [{prior_y.min():.1f}, {prior_y.max():.1f}]")
 with model:
     idata.update(pm.sample_posterior_predictive(idata))
 
-az.plot_ppc(idata, kind="cumulative")
-az.plot_loo_pit(idata, y="y")
+az.plot_ppc_dist(idata, kind="ecdf")
+az.plot_loo_pit(idata, var_names=["y"])
 ```
 
 Observed data (dark line) should fall within posterior predictive distribution. See [references/arviz.md](references/arviz.md) for detailed interpretation.

@@ -190,7 +190,7 @@ idata.to_netcdf("results.nc")
 
 summary = az.summary(idata)
 print(summary)
-n_div = idata.sample_stats["diverging"].sum()
+n_div = idata["sample_stats"]["diverging"].sum()
 print(f"Divergences: {n_div}")
 """
         _write_model_py(run_dir, code)
@@ -228,7 +228,7 @@ with pm.Model() as model:
 idata.to_netcdf("results.nc")
 
 summary = az.summary(idata)
-n_div = idata.sample_stats["diverging"].sum()
+n_div = idata["sample_stats"]["diverging"].sum()
 r_hat = az.rhat(idata)
 print("Done")
 """

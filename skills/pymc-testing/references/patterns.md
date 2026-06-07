@@ -69,7 +69,7 @@ def mock_pymc_sample():
 
 ```python
 # test_plotting.py
-def test_plot_posterior_works(mock_pymc_sample):
+def test_plot_dist_works(mock_pymc_sample):
     import arviz as az
     
     with pm.Model() as model:
@@ -80,7 +80,7 @@ def test_plot_posterior_works(mock_pymc_sample):
         idata = pm.sample()
     
     # Test plotting - just check it doesn't error
-    az.plot_posterior(idata, var_names=["mu"])  # No error = pass
+    az.plot_dist(idata, var_names=["mu"])  # No error = pass
 ```
 
 ## Testing Serialization

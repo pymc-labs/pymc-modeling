@@ -113,8 +113,8 @@ az.plot_autocorr(dt, var_names=["param1", "param2"])
 Generate these diagnostic plots:
 
 ```python
-# Trace plots with rank overlay
-az.plot_trace(dt, kind="rank_vlines")
+# Rank plot for chain agreement
+az.plot_rank(dt)
 
 # Forest plot for parameter comparison
 az.plot_forest(dt)

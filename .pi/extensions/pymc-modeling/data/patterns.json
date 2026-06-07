@@ -66,14 +66,14 @@
     "id": "prior_predictive_check",
     "keywords": ["prior predictive", "prior check", "sanity check", "domain knowledge"],
     "title": "Prior predictive checking workflow",
-    "code": "with model:\n    prior_pred = pm.sample_prior_predictive(samples=500, random_seed=42)\n\n# Check that prior predictions are in a plausible range\nimport arviz as az\naz.plot_ppc(prior_pred, group='prior')",
+    "code": "with model:\n    prior_pred = pm.sample_prior_predictive(draws=500, random_seed=42)\n\n# Check that prior predictions are in a plausible range\nimport arviz as az\naz.plot_ppc_dist(prior_pred, group='prior_predictive', kind='ecdf')",
     "explanation": "Always sample from the prior predictive before fitting. If predictions span impossible ranges (e.g., negative heights, probabilities > 100%), your priors are too vague."
   },
   {
     "id": "posterior_predictive_check",
     "keywords": ["posterior predictive", "model checking", "PPC", "fit quality"],
     "title": "Posterior predictive checking",
-    "code": "with model:\n    pm.sample_posterior_predictive(idata, extend_inferencedata=True, random_seed=42)\n\naz.plot_ppc(idata, kind='kde')",
+    "code": "with model:\n    pm.sample_posterior_predictive(idata, extend_inferencedata=True, random_seed=42)\n\naz.plot_ppc_dist(idata, kind='kde')",
     "explanation": "After fitting, generate posterior predictive samples and compare to observed data. Systematic discrepancies indicate model misspecification."
   },
   {
@@ -101,8 +101,8 @@
     "id": "save_early_pattern",
     "keywords": ["save", "netcdf", "checkpoint", "results", "crash"],
     "title": "Save results early (before post-processing)",
-    "code": "# Save immediately after sampling\nidata.to_netcdf('results.nc')\n\n# Then do post-processing\naz.summary(idata)\naz.plot_trace(idata)",
-    "explanation": "Save InferenceData to disk right after sampling, before any post-processing. If post-processing crashes, you don't lose the expensive MCMC samples."
+    "code": "# Save immediately after sampling\nidata.to_netcdf('results.nc')\n\n# Then do post-processing\naz.summary(idata)\naz.plot_trace_dist(idata)",
+    "explanation": "Save the DataTree to disk right after sampling, before any post-processing. If post-processing crashes, you don't lose the expensive MCMC samples."
   },
   {
     "id": "coords_dims",
@@ -171,7 +171,7 @@
     "id": "convergence_diagnostics",
     "keywords": ["convergence", "r_hat", "ESS", "divergence", "diagnostics", "mixing"],
     "title": "Comprehensive convergence diagnostics",
-    "code": "# Check r_hat (should be < 1.01)\nprint(az.summary(idata, var_names=['mu', 'sigma']))\n\n# Check divergences\ndiverging = idata.sample_stats['diverging'].sum().item()\nprint(f'Divergences: {diverging}')\n\n# Visual diagnostics\naz.plot_trace(idata)\naz.plot_rank(idata)\naz.plot_energy(idata)",
+    "code": "# Check r_hat (should be < 1.01)\nprint(az.summary(idata, var_names=['mu', 'sigma']))\n\n# Check divergences\ndiverging = idata['sample_stats']['diverging'].sum().item()\nprint(f'Divergences: {diverging}')\n\n# Visual diagnostics\naz.plot_trace_dist(idata)\naz.plot_rank(idata)\naz.plot_energy(idata)",
     "explanation": "Always check convergence: r_hat < 1.01, ESS > 400, zero divergences. If divergences occur, try non-centered parameterization or increase target_accept."
   },
   {
@@ -318,7 +318,7 @@
     "id": "prior_data_conflict",
     "keywords": ["prior conflict", "boundary", "tight prior", "narrow", "prior scale", "prior-data"],
     "title": "Prior-data conflict",
-    "code": "# Diagnose: compare prior and posterior\naz.plot_dist_comparison(idata, var_names=['sigma'])\n\n# Check if posterior is piled against prior boundary\n# If prior is too narrow, widen it:\n# BAD: sigma = pm.HalfNormal('sigma', sigma=0.1)  # if true sigma ~ 5\n# GOOD:\nsigma = pm.HalfNormal('sigma', sigma=5)\n\n# Always validate with prior predictive checks\nwith model:\n    prior_pred = pm.sample_prior_predictive(draws=500)\naz.plot_ppc(prior_pred, group='prior')",
+    "code": "# Diagnose: compare prior and posterior\naz.plot_prior_posterior(idata, var_names=['sigma'])\n\n# Check if posterior is piled against prior boundary\n# If prior is too narrow, widen it:\n# BAD: sigma = pm.HalfNormal('sigma', sigma=0.1)  # if true sigma ~ 5\n# GOOD:\nsigma = pm.HalfNormal('sigma', sigma=5)\n\n# Always validate with prior predictive checks\nwith model:\n    prior_pred = pm.sample_prior_predictive(draws=500)\naz.plot_ppc_dist(prior_pred, group='prior_predictive', kind='ecdf')",
     "explanation": "Prior-data conflict occurs when the prior concentrates mass away from data-supported values. Symptoms: posterior piled against prior boundary, very low ESS, divergences near prior boundaries. Fix by widening the prior, checking the prior scale matches the data scale, and using prior predictive checks."
   },
   {
@@ -339,7 +339,7 @@
     "id": "arviz_datatree",
     "keywords": ["InferenceData", "idata.posterior", "convert_to_inference_data", "az.InferenceData", "AttributeError", "DataTree", "from_dict", "arviz 1.0"],
     "title": "ArviZ 1.0 DataTree replaces InferenceData",
-    "code": "# BAD (ArviZ <1.0 / PyMC <6): the InferenceData class no longer exists\n# idata = az.InferenceData(...)            # AttributeError in ArviZ 1.0\n# idata = az.convert_to_inference_data(d)  # removed\n# post = idata.posterior                   # works on DataTree, but see below\n\n# GOOD (PyMC 6 + ArviZ 1.0):\n# pm.sample returns xarray.DataTree directly\nidata = pm.sample()                    # xarray.DataTree\npost = idata['posterior']              # xr.Dataset (preferred access)\n\n# Convert from dicts / other frameworks\nimport arviz as az\ndt = az.convert_to_datatree(raw_samples)\n\n# Summaries: ci_prob/ci_kind, not hdi_prob\naz.summary(idata, ci_prob=0.89, ci_kind='eti')\n# Or via the accessor:\nimport arviz_stats\nidata.azstats.summary(ci_prob=0.89)",
+    "code": "# BAD (ArviZ <1.0 / PyMC <6): the InferenceData class no longer exists\n# idata = az.InferenceData(...)            # AttributeError in ArviZ 1.0\n# idata = az.convert_to_inference_data(d)  # removed\n# post = idata.posterior                   # removed; use bracket access\n\n# GOOD (PyMC 6 + ArviZ 1.0):\n# pm.sample returns xarray.DataTree directly\nidata = pm.sample()                    # xarray.DataTree\npost = idata['posterior']              # xr.Dataset (preferred access)\n\n# Convert from dicts / other frameworks\nimport arviz as az\ndt = az.convert_to_datatree(raw_samples)\n\n# Summaries: ci_prob/ci_kind, not hdi_prob\naz.summary(idata, ci_prob=0.89, ci_kind='eti')\n# Or via the accessor:\nimport arviz_stats\nidata.azstats.summary(ci_prob=0.89)",
     "explanation": "ArviZ 1.0 removed the InferenceData class and az.convert_to_inference_data — everything is now xarray.DataTree. PyMC 6's pm.sample / sample_prior_predictive / sample_posterior_predictive return DataTree directly. Use az.convert_to_datatree for external inputs, access groups with dt['posterior'], and replace hdi_prob= with ci_prob/ci_kind. Import arviz_stats to enable the dt.azstats.<method>(...) accessor."
   },
   {
@@ -360,7 +360,7 @@
     "id": "sample_prior_predictive_samples",
     "keywords": ["sample_prior_predictive", "samples=", "TypeError", "unexpected keyword", "draws="],
     "title": "sample_prior_predictive uses draws=, not samples=",
-    "code": "# BAD (PyMC <6):\n# prior = pm.sample_prior_predictive(samples=500)  # TypeError in PyMC 6\n\n# GOOD (PyMC 6):\nwith model:\n    prior = pm.sample_prior_predictive(draws=500, random_seed=42)\n# prior is an xarray.DataTree with prior and prior_predictive groups\n\nimport arviz as az\naz.plot_ppc(prior, group='prior')",
+    "code": "# BAD (PyMC <6):\n# prior = pm.sample_prior_predictive(samples=500)  # TypeError in PyMC 6\n\n# GOOD (PyMC 6):\nwith model:\n    prior = pm.sample_prior_predictive(draws=500, random_seed=42)\n# prior is an xarray.DataTree with prior and prior_predictive groups\n\nimport arviz as az\naz.plot_ppc_dist(prior, group='prior_predictive', kind='ecdf')",
     "explanation": "PyMC 6 renamed the samples= argument of pm.sample_prior_predictive to draws= for consistency with pm.sample. pm.sample_prior_predictive and pm.sample_posterior_predictive both return xarray.DataTree (or dict with return_inferencedata=False)."
   },
   {

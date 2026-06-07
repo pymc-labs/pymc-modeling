@@ -36,6 +36,8 @@ claude plugin update pymc-modeling
 
 Use the install script when you want local symlinked resources. The script installs **only** the target you name; run it again with another target if you use multiple harnesses.
 
+If the target already has `pymc-modeling` resources, the installer first removes the existing plugin-owned paths and then recreates them from this checkout.
+
 ```bash
 git clone https://github.com/pymc-labs/pymc-modeling
 cd pymc-modeling
@@ -188,7 +190,7 @@ This plugin targets **PyMC 6+, PyTensor 3+, ArviZ 1.0+** and teaches these APIs 
 
 | Library | Minimum |
 |---|---|
-| `arviz` (+ `arviz-base`, `arviz-stats`) | `1.0` (released 2026-03-02) |
+| `arviz` (+ `arviz-base`, `arviz-stats`, `arviz-plots`) | `1.0` (released 2026-03-02) |
 | `pymc` | `6.0` |
 | `pytensor` | `3.0` |
 
@@ -204,6 +206,7 @@ pip install "pytensor @ git+https://github.com/pymc-devs/pytensor@v3"
 - `xarray.DataTree` replaces `arviz.InferenceData`; bracket access: `dt["posterior"]`, not `idata.posterior`
 - `az.summary(dt)` or the `ds.azstats.summary()` accessor (after `import arviz_stats`)
 - `az.waic` is gone. Use `az.loo`, `az.loo_expectations`, `az.loo_metrics`
+- ArviZ plotting moved to the ArviZverse API: `az.plot_dist` replaces `plot_posterior`/`plot_density`, `az.plot_ppc_dist` replaces `plot_ppc`, and `az.plot_trace_dist` replaces density+trace `plot_trace`
 - Default interval is **0.89 ETI** (equal-tailed), not 0.94 HDI
 - `pm.compile` replaces `pm.compile_pymc`; `pm.sample_prior_predictive(draws=N)` replaces `samples=N`
 - `pm.compute_log_likelihood(idata, model=model)` must be called explicitly after sampling

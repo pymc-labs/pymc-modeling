@@ -53,7 +53,7 @@ idata.to_netcdf("results.nc")
 
 summary = az.summary(idata)
 print(summary)
-n_div = idata.sample_stats["diverging"].sum().item()
+n_div = idata["sample_stats"]["diverging"].sum().item()
 print(f"Divergences: {n_div}")
 """
     else:

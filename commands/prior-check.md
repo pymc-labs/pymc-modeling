@@ -30,7 +30,7 @@ with model:
 
 ```python
 # Prior predictive check plot
-az.plot_ppc(prior_pred, group="prior", kind="cumulative")
+az.plot_ppc_dist(prior_pred, group="prior_predictive", kind="ecdf")
 
 # Plot prior distributions for key parameters
 az.plot_dist(prior_pred["prior"]["PARAM_NAME"].values.flatten())
