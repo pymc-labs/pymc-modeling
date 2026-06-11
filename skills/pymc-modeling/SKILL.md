@@ -13,7 +13,7 @@ description: >
 
 # PyMC Modeling
 
-Modern Bayesian modeling with PyMC 6+ on the ArviZ 1.0 / PyTensor 3 stack. Key defaults: nutpie sampler (2-5x faster), non-centered parameterization for hierarchical models, HSGP over exact GPs, coords/dims for readable DataTree output, and save-early workflow to prevent data loss from late crashes.
+Modern Bayesian modeling with PyMC 6+ on the ArviZ 1.0 / PyTensor 3 stack. Key defaults: nutpie sampler (2-5x faster; PyMC 6 selects it automatically when installed — no `nuts_sampler` argument needed), non-centered parameterization for hierarchical models, HSGP over exact GPs, coords/dims for readable DataTree output, and save-early workflow to prevent data loss from late crashes.
 
 `pm.sample(...)` returns an `xarray.DataTree` — the `idata` name is kept by convention, but it is a DataTree, not the old `InferenceData`. Access groups by bracket: `idata["posterior"]`, `idata["sample_stats"]`, etc.
 
@@ -42,7 +42,7 @@ with pm.Model(coords=coords) as model:
     y = pm.Normal("y", mu=mu, sigma=sigma, observed=y_obs, dims="obs")
 
     # Inference
-    idata = pm.sample(nuts_sampler="nutpie", random_seed=42)
+    idata = pm.sample(random_seed=42)  # PyMC 6 uses nutpie automatically when installed
 ```
 
 ### Coords and Dims
@@ -76,11 +76,13 @@ alpha = pm.Normal("alpha", mu_alpha, sigma_alpha, dims="group")
 
 ### Default Sampling (nutpie preferred)
 
+In PyMC 6, `pm.sample` uses nutpie automatically whenever it is installed and the
+model can be compiled — do not pass `nuts_sampler="nutpie"` explicitly:
+
 ```python
 with model:
     idata = pm.sample(
         draws=1000, tune=1000, chains=4,
-        nuts_sampler="nutpie",
         random_seed=42,
     )
 idata.to_netcdf("results.nc")  # Save immediately after sampling
@@ -96,10 +98,10 @@ This applies to every sampler (nutpie, default NUTS, NumPyro) — not just nutpi
 
 ### When to Use PyMC's Default NUTS Instead
 
-nutpie cannot handle discrete parameters or certain transforms (e.g., `ordered` transform with `OrderedLogistic`/`OrderedProbit`). For these models, omit `nuts_sampler="nutpie"`:
+nutpie cannot handle discrete parameters or certain transforms (e.g., `ordered` transform with `OrderedLogistic`/`OrderedProbit`). PyMC 6 falls back automatically; to force the PyMC sampler explicitly, pass `nuts_sampler="pymc"`:
 
 ```python
-idata = pm.sample(draws=1000, tune=1000, chains=4, random_seed=42)
+idata = pm.sample(draws=1000, tune=1000, chains=4, nuts_sampler="pymc", random_seed=42)
 ```
 
 Never change the model specification to work around sampler limitations.
@@ -309,7 +311,7 @@ For compressed storage of large DataTree objects, see [references/workflow.md](r
 
 ```python
 with model:
-    idata = pm.sample(nuts_sampler="nutpie")  # returns a DataTree
+    idata = pm.sample()  # nutpie by default in PyMC 6; returns a DataTree
 idata.to_netcdf("results.nc")  # Save before any post-processing!
 
 with model:
@@ -496,12 +498,12 @@ with pm.do(causal_model, {"x": 2}) as intervention_model:
 
 # pm.observe — condition (preserves causal structure)
 with pm.observe(causal_model, {"y": 1}) as conditioned_model:
-    idata = pm.sample(nuts_sampler="nutpie")  # P(x, z | y=1)
+    idata = pm.sample()  # P(x, z | y=1)
 
 # Combine: P(y | do(x=2), z=0)
 with pm.do(causal_model, {"x": 2}) as m1:
     with pm.observe(m1, {"z": 0}) as m2:
-        idata = pm.sample(nuts_sampler="nutpie")
+        idata = pm.sample()
 ```
 
 See [references/causal.md](references/causal.md) for detailed causal inference patterns.
