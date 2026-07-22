@@ -242,6 +242,7 @@ Before sampling, validate the model with `model.debug()` and `model.point_logps(
 | `NaN` in log-probability | Invalid parameter combinations | Check parameter constraints, add bounds |
 | `-inf` log-probability | Observations outside likelihood support | Verify data matches distribution domain |
 | Slow discrete sampling | NUTS incompatible with discrete | Marginalize discrete variables |
+| Fresh env: sampling never starts, one core pinned in numba typing for hours | Cold `~/.pytensor/numba` kernel cache (invalidated by pytensor version change) | Warm cache with a small-data fit first; never delete the cache — see [references/troubleshooting.md](references/troubleshooting.md) § Cold Numba Kernel Cache |
 
 See [references/troubleshooting.md](references/troubleshooting.md) for comprehensive problem-solution guide.
 

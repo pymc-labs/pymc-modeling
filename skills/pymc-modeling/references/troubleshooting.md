@@ -702,6 +702,32 @@ for dataset in datasets:
     idata = pm.sample()
 ```
 
+### Cold Numba Kernel Cache in Fresh Environments
+
+**Symptom:** In a freshly created environment (or after a pytensor version bump), `pm.sample` with nutpie/Numba pins a single CPU core at 100% for hours and never starts drawing. py-spy shows frames inside `numba/core/typing` or `lowering` the whole time. The identical model in an older environment reaches multi-core sampling within minutes.
+
+**Cause:** PyTensor's Numba backend persists compiled kernels in a per-user disk cache (`~/.pytensor/numba`, often 1 GB+ after months of use). Large graphs can require compiling thousands of kernels; done cold, this takes **hours**, not minutes. Cache entries do not carry across pytensor versions, so any fresh install or version bump runs fully cold even though "the same model always worked before."
+
+**The trap that misleads diagnosis:** historical runtimes are warm-cache numbers. Do not reason "cold compile can't be the cause because the model historically compiled and sampled in N minutes" — that N was measured with a warm cache. A cold run can exceed the historical *total* runtime many times over while still being ordinary cold compilation. This failure is routinely misattributed to a pytensor/numba regression or to recent model changes; confirm with the cache test below before blaming either.
+
+**Diagnosis:**
+
+```bash
+# Single core busy + numba typing/lowering frames = still compiling (not hung sampling)
+py-spy dump --pid <pid-of-the-python-child>   # target the process with high CPU, not a wrapper
+du -sh ~/.pytensor/numba                       # large existing cache = other envs run warm
+
+# Decisive A/B: move the cache aside (do NOT delete) and rerun a fast-known-good env —
+# if it now stalls too, cache state, not code or version, is the controlling variable
+mv ~/.pytensor/numba ~/.pytensor/numba.bak
+```
+
+**Fix / prevention:**
+
+1. **Warm the cache deliberately** before the first real fit in any fresh environment: run the same model with a small data subset. Numba kernels are typed by dtype and dimensionality, not array size, so a small-data fit compiles the same kernels in minutes and full-size fits then run at normal speed.
+2. **Never delete `~/.pytensor/numba`.** It is the asset that makes fits fast; deleting it turns every environment cold. (Moving it aside temporarily is the reversible diagnostic; move it back after.)
+3. **Supervise first runs in fresh envs:** if multi-core sampling hasn't begun within a few minutes, you are in a cold compile — decide deliberately whether to let it warm the cache or to warm via a small-data run instead. Successive interrupted runs still make progress: the cache accumulates across processes.
+
 ### Profiling Slow Models
 
 ```python
