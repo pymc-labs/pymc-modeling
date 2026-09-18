@@ -1,4 +1,4 @@
-# pymc-agent-skills
+# pymc-modeling
 
 Agent skills for Bayesian modeling with PyMC, PyTensor and ArviZ. Each skill is
 a folder of instructions and focused references in the
@@ -32,21 +32,21 @@ No custom installer or running service is required.
 ### Published repository (publication required)
 
 Use the following commands only after the matching skills and marketplace
-manifest have been published to `fonnesbeck/pymc-agent-skills`. A local checkout,
+manifest have been published to `fonnesbeck/pymc-modeling`. A local checkout,
 installer discovery or manifest validation does not establish remote availability
 or successful plugin installation.
 
 For the Skills CLI:
 
 ```bash
-npx skills add fonnesbeck/pymc-agent-skills
+npx skills add fonnesbeck/pymc-modeling
 ```
 
 For a Claude Code managed bundle:
 
 ```text
-/plugin marketplace add fonnesbeck/pymc-agent-skills
-/plugin install pymc-agent-skills@pymc-agent-skills
+/plugin marketplace add fonnesbeck/pymc-modeling
+/plugin install pymc-modeling@pymc-modeling
 ```
 
 Choose either the plugin or the Skills CLI/manual installation, not both, to
