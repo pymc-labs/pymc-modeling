@@ -5,6 +5,8 @@ node_modules/
 __pycache__/
 *.py[cod]
 *.so
+.pytest_cache/
+.ruff_cache/
 
 # IDE
 .idea/
@@ -29,3 +31,6 @@ plans/
 # OS
 .DS_Store
 Thumbs.db
+# pixi environments
+.pixi/*
+!.pixi/config.toml

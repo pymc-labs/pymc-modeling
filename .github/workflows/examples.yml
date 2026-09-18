@@ -1,0 +1,25 @@
+name: Executable examples
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  cpu-examples:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [default, jax, pytorch, mlx]
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: prefix-dev/setup-pixi@v0.10.2
+        with:
+          pixi-version: v0.77.0
+          environments: ${{ matrix.environment }}
+          locked: true
+      - name: Check numerical and input contracts
+        run: pixi run --locked -e ${{ matrix.environment }} test

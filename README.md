@@ -25,6 +25,18 @@ npx skills add .
 
 Choose the skills and agents you want.
 
+For a local Claude Code managed bundle, run these commands from the repository
+root inside Claude Code:
+
+```text
+/plugin marketplace add ./
+/plugin install pymc-modeling@pymc-modeling
+```
+
+This local installation does not require the renamed marketplace to be published.
+Use a clean checkout for this installation: Claude Code can copy untracked
+files too, including a maintainer's `.pixi/` environments.
+
 Or copy individual directories from `skills/` into your agent's supported skills
 location. Keep the whole directory, including references, any scripts and `LICENSE`.
 No custom installer or running service is required.
@@ -32,9 +44,10 @@ No custom installer or running service is required.
 ### Published repository (publication required)
 
 Use the following commands only after the matching skills and marketplace
-manifest have been published to `pymc-labs/pymc-modeling`. A local checkout,
-installer discovery or manifest validation does not establish remote availability
-or successful plugin installation.
+manifest have been published to `pymc-labs/pymc-modeling`. The published manifest
+must name both the marketplace and its plugin `pymc-modeling`. Until then, use
+the local-checkout instructions above. Local validation does not establish remote
+availability or successful remote plugin installation.
 
 For the Skills CLI:
 
@@ -67,6 +80,32 @@ use the consuming project's compatible Python environment. Optional packages
 such as PreliZ, pymc-extras, BART and alternative backends are needed only for
 the workflows that use them. Consult version-matched documentation; do not
 replace a working environment just to install these instructions.
+
+## Maintainer checks
+
+These checks exercise the educational custom Op and its CPU backends, not the
+full set of modeling examples or accelerator hardware. They do not install
+anything into a consuming project's environment.
+
+The Linux test environments require glibc 2.35 or newer. From this repository:
+
+```bash
+pixi run --locked test
+pixi run --locked -e jax test -m jax
+pixi run --locked -e pytorch test -m pytorch
+pixi run --locked -e mlx test -m mlx
+```
+
+The default environment checks the base Op and Numba; other backend tests skip
+when their optional packages are absent. The named environments install the
+corresponding backend, with CPU-only PyTorch and MLX packages. `pixi.lock` records
+exact resolved versions, and each pytest session prints the versions actually
+exercised. Tests compare values to SciPy and weighted derivatives and curvature
+to analytic references, and check support boundaries and input errors.
+
+The GitHub Actions workflow runs all four environments with the lockfile.
+Use `pixi run check` and `pixi run format` for regression-test code quality.
+These maintainer tools are not needed to install or use the skills.
 
 ## License
 

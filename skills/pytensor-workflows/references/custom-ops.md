@@ -80,8 +80,9 @@ or quietly round counts.
 and incompatible static lengths, and returns `Apply(self, inputs, outputs)`.
 It does not run NumPy on symbolic variables. The example uses `eta.type()` to
 preserve its static vector type while promising float64 output. Static types
-cannot establish equality between three unknown runtime lengths: `perform`,
-the gradient graph, and shape inference each preserve that condition.
+cannot establish equality between unknown runtime lengths. Evaluating the
+density or its symbolic gradient enforces that condition; querying only the
+output shape is not input validation.
 
 `perform(node, inputs, output_storage)` receives concrete arrays. Write each
 output into its existing one-element storage cell, not by replacing the cell
@@ -99,9 +100,15 @@ clearer for these rank, dtype, and equality checks. `connection_pattern` reports
 input/output dependence, **not** whether a derivative was convenient to write.
 Counts affect this likelihood, so they are not declared disconnected.
 
-`infer_shape(fgraph, node, shapes)` returns one shape tuple per output without
-needing the expensive density calculation. The supplied equality guard means a
-shape-only query cannot silently accept mismatched lengths. `do_constant_folding`
+`infer_shape(node, shapes)` returns one shape tuple per output without
+needing the expensive density calculation. Its equality guard checks dynamically
+inferred lengths when the backend preserves that check. If the output length is
+statically known, PyTensor can return a constant without calling `infer_shape`;
+the guard then never executes. For example, an `eta` type with `shape=(3,)` and
+unknown-length count vectors can yield output shape `(3,)` even when the supplied
+counts have length one. Evaluate the density to validate those inputs. JAX can
+also drop dynamic checks, as described in the backend reference.
+`do_constant_folding`
 controls compile-time evaluation on constants; the default is appropriate for
 this pure Op. `debug_perform` is an optional alternate diagnostic implementation,
 not an error-hiding fallback. `flops` estimates profiling work, not correctness.

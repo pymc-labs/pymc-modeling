@@ -72,8 +72,8 @@ class BinomialLogpOp(Op):
         result[valid & np.isnan(eta)] = np.nan
         output_storage[0][0] = result
 
-    def infer_shape(self, fgraph, node, shapes):
-        # A shape-only query must not silently accept lengths that perform rejects.
+    def infer_shape(self, node, shapes):
+        # Guard dynamic shape inference; static output shapes can bypass this hook.
         length = _equal_length(shapes[0][0], shapes[1][0], shapes[2][0])
         return [(length,)]
 

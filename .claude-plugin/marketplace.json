@@ -1,10 +1,10 @@
 {
-  "name": "pymc-agent-skills",
-  "owner": { "name": "PyMC Developers" },
+  "name": "pymc-modeling",
+  "owner": { "name": "PyMC Labs" },
   "metadata": { "description": "Agent skills for PyMC, PyTensor, prior elicitation and ArviZ." },
   "plugins": [
     {
-      "name": "pymc-agent-skills",
+      "name": "pymc-modeling",
       "description": "Bayesian modeling, prior elicitation, ArviZ diagnostics and PyTensor workflows.",
       "source": "./",
       "strict": false,

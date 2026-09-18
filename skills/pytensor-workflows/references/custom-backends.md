@@ -33,6 +33,11 @@ derivative. Reuse existing ndarray/tensor registrations rather than globally
 overwriting them. Keep shape/dtype checks in `make_node`, strict function inputs,
 and the lowering itself; a typifier is not necessarily an arbitrary-object validator.
 
+Shape-only output is not input validation on any backend: a statically known
+output length can bypass the Op's `infer_shape` guard entirely. Evaluate the
+density to exercise the equal-length checks. JAX has an additional dynamic-check
+limitation described below.
+
 Use an explicit linker in `Mode(..., optimizer="fast_run")` when diagnosing a
 backend. A successful `FAST_RUN` call does not identify the selected executor.
 Use `In(..., strict=True)` if implicit float32-to-float64 input conversion would
