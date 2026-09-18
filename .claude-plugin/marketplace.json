@@ -1,24 +1,18 @@
 {
-  "name": "python-analytics-skills",
-  "owner": {
-    "name": "Chris Fonnesbeck"
-  },
-  "metadata": {
-    "description": "Python analytics, Bayesian modeling, and marimo skills",
-    "version": "2.0.0"
-  },
+  "name": "pymc-agent-skills",
+  "owner": { "name": "PyMC Developers" },
+  "metadata": { "description": "Agent skills for PyMC, PyTensor, prior elicitation and ArviZ." },
   "plugins": [
     {
-      "name": "analytics",
-      "description": "Python analytics plugin with PyMC and marimo skills",
+      "name": "pymc-agent-skills",
+      "description": "Bayesian modeling, prior elicitation, ArviZ diagnostics and PyTensor workflows.",
       "source": "./",
+      "strict": false,
       "skills": [
-        "./skills/marimo-notebook",
-        "./skills/model-evaluation",
-        "./skills/prior-elicitation",
-        "./skills/pymc-extras",
         "./skills/pymc-modeling",
-        "./skills/pymc-testing"
+        "./skills/prior-elicitation",
+        "./skills/arviz-diagnostics",
+        "./skills/pytensor-workflows"
       ]
     }
   ]

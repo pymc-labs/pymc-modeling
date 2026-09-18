@@ -1,253 +1,134 @@
-# BART (Bayesian Additive Regression Trees)
+# BART: fitting, prediction state and interpretation
 
-BART is a nonparametric regression approach using an ensemble of trees with a Bayesian prior. Available via `pymc-bart`.
+BART models a function as a sum of trees, not an observation process. Specify the
+likelihood, link, conditional independence and noise model separately. Flexible
+means do not remove heteroscedasticity, measurement or extrapolation assumptions.
 
-## Table of Contents
-- [Basic Usage](#basic-usage)
-- [Regression](#regression)
-- [Classification](#classification)
-- [Variable Importance](#variable-importance)
-- [Partial Dependence](#partial-dependence)
-- [Configuration](#configuration)
+The API cautions here refer to pymc-bart 0.13.1/bartrs 0.4.0. Inspect the installed
+release before assuming they persist. That BART release requires PyMC >=6.3,<7,
+Python >=3.12 and bartrs >=0.4; extras 0.14's older core requirements conflict.
+Use compatible project dependencies instead of overriding bounds.
 
-## Basic Usage
+## Outcome-dependent regularization and prior prediction
+
+BART's Y argument is not another observed likelihood. In 0.13.1 it supplies
+initialization and empirical prior/proposal scaling: initial mean Y.mean(), leaf
+scale Y.std()/sqrt(m), except exactly binary {0,1} uses 3/sqrt(m). This is
+outcome-dependent scaling, not an outcome-independent weak prior. Place it inside
+training folds; never include future outcomes. Constant Y yields zero empirical
+leaf scale and needs explicit investigation.
+
+Depth probability is `alpha*(1+depth)**(-beta)`. Tree count, depth, split weights
+and particle/batch settings change regularization/exploration. Assess sensitivity
+with the same scientific target.
+
+Before tree history exists, this version's `BARTRV.rng_fn` returns a constant
+training-response mean. A prior-predictive call therefore does **not** simulate a
+full generative function prior. A noise-only plausibility check is narrower; do not
+label it a full BART prior check. After fitting, stored posterior trees are not
+fresh prior draws either.
+
+Binary classification can use sigmoid(BART) with Bernoulli and its binary scaling.
+Counts need a positive link and a defensible latent-scale Y setup; blindly log(Y)
+fails at zero. Audit response support and induced priors for each likelihood.
+
+## Sampling the correct tree posterior
 
 ```python
-import pymc as pm
+from bartrs import PGBART
 import pymc_bart as pmb
 
-with pm.Model() as bart_model:
-    # BART prior over the regression function
-    mu = pmb.BART("mu", X=X, Y=y, m=50)
-
-    # Observation noise
-    sigma = pm.HalfNormal("sigma", sigma=1)
-
-    # Likelihood
-    y_obs = pm.Normal("y_obs", mu=mu, sigma=sigma, observed=y)
-
-    idata = pm.sample()
+with pm.Model() as model:
+    mu = pmb.BART("mu", X, y, m=tree_count, response="constant")
+    sigma = pm.HalfNormal("sigma", sigma=noise_prior_scale)
+    pm.Normal("response", mu=mu, sigma=sigma, observed=y)
+    step = [PGBART(vars=[mu]), pm.NUTS(vars=[sigma])]
+    idata = pm.sample(step=step, nuts_sampler="pymc", tune=tune,
+                      draws=draws, chains=chains, random_seed=42)
+idata.to_netcdf("posterior.nc")
 ```
 
-## Regression
-
-### Continuous Outcome
-
-```python
-with pm.Model() as regression_bart:
-    mu = pmb.BART("mu", X=X_train, Y=y_train, m=50)
-    sigma = pm.HalfNormal("sigma", 1)
-    y = pm.Normal("y", mu=mu, sigma=sigma, observed=y_train)
-
-    idata = pm.sample()
-
-# Predictions
-with regression_bart:
-    pmb.set_data({"mu": X_test})
-    ppc = pm.sample_posterior_predictive(idata)
-```
-
-### Heteroscedastic Regression
-
-```python
-with pm.Model() as hetero_bart:
-    # Mean function
-    mu = pmb.BART("mu", X=X, Y=y, m=50)
-
-    # Variance function (also BART)
-    log_sigma = pmb.BART("log_sigma", X=X, Y=y, m=20)
-    sigma = pm.Deterministic("sigma", pm.math.exp(log_sigma))
-
-    y_obs = pm.Normal("y_obs", mu=mu, sigma=sigma, observed=y)
-```
-
-## Classification
-
-### Binary Classification
-
-```python
-with pm.Model() as binary_bart:
-    # BART on latent scale
-    mu = pmb.BART("mu", X=X, Y=y, m=50)
-
-    # Probit or logit link
-    p = pm.Deterministic("p", pm.math.sigmoid(mu))
-
-    y_obs = pm.Bernoulli("y_obs", p=p, observed=y)
-
-    idata = pm.sample()
-```
-
-### Multiclass Classification
-
-```python
-with pm.Model(coords={"class": classes}) as multiclass_bart:
-    # Separate BART for each class (one-vs-rest style)
-    mu = pmb.BART("mu", X=X, Y=y_onehot, m=50, dims="class")
-
-    # Softmax
-    p = pm.Deterministic("p", pm.math.softmax(mu, axis=-1))
-
-    y_obs = pm.Categorical("y_obs", p=p, observed=y)
-```
-
-## Variable Importance
-
-### Compute Variable Importance
-
-```python
-# After sampling
-vi = pmb.compute_variable_importance(idata, X, method="VI")
-
-# Plot
-pmb.plot_variable_importance(vi, X)
-```
-
-### Methods
-
-- `"VI"`: Based on inclusion frequency in trees
-- `"backward"`: Backward elimination importance
-
-```python
-# Backward elimination (more expensive but often better)
-vi_backward = pmb.compute_variable_importance(
-    idata, X, method="backward", random_seed=42
-)
-```
-
-## Partial Dependence
-
-### 1D Partial Dependence
-
-```python
-# Partial dependence for variable at index 0
-pmb.plot_pdp(idata, X=X, Y=y, xs_interval="quantiles", var_idx=[0])
-
-# Multiple variables
-pmb.plot_pdp(idata, X=X, Y=y, var_idx=[0, 1, 2])
-```
-
-### 2D Partial Dependence (Interaction)
-
-```python
-# Interaction between variables 0 and 1
-pmb.plot_pdp(idata, X=X, Y=y, var_idx=[0, 1], grid="wide")
-```
-
-### Individual Conditional Expectation (ICE)
-
-```python
-pmb.plot_ice(idata, X=X, Y=y, var_idx=0)
-```
-
-## Configuration
-
-### Key Parameters
-
-```python
-mu = pmb.BART(
-    "mu",
-    X=X,
-    Y=y,
-    m=50,              # number of trees (default 50, more = smoother)
-    alpha=0.95,        # prior probability tree has depth 1
-    beta=2.0,          # controls depth of trees
-    split_prior=None,  # prior on split variable selection
-)
-```
-
-### Number of Trees (m)
-
-- `m=50`: Good default
-- `m=100-200`: Smoother fit, more computation
-- `m=20-30`: Faster, may underfit
-
-```python
-# More trees for complex functions
-mu = pmb.BART("mu", X=X, Y=y, m=100)
-```
-
-### Tree Depth (alpha, beta)
-
-Controls tree complexity via prior P(node is terminal at depth d) = alpha * (1 + d)^(-beta)
-
-- Higher `alpha` or lower `beta`: Deeper trees
-- Default `alpha=0.95, beta=2` works well
-
-### Split Prior
-
-Control which variables are preferred for splitting:
-
-```python
-# Uniform (default)
-split_prior = None
-
-# Favor first 3 variables
-split_prior = [2, 2, 2, 1, 1, 1, 1]  # length = n_features
-
-mu = pmb.BART("mu", X=X, Y=y, split_prior=split_prior)
-```
-
-## Combining BART with Parametric Components
-
-### BART + Linear
-
-```python
-with pm.Model() as semi_parametric:
-    # Linear component for known effects
-    beta = pm.Normal("beta", 0, 1, shape=p_linear)
-    linear = pm.math.dot(X_linear, beta)
-
-    # BART for nonlinear/interaction effects
-    nonlinear = pmb.BART("nonlinear", X=X_nonlinear, Y=y, m=50)
-
-    mu = linear + nonlinear
-    sigma = pm.HalfNormal("sigma", 1)
-    y_obs = pm.Normal("y_obs", mu=mu, sigma=sigma, observed=y)
-```
-
-### BART + Random Effects
-
-```python
-with pm.Model(coords={"group": groups}) as bart_mixed:
-    # Group random effects
-    sigma_group = pm.HalfNormal("sigma_group", 1)
-    alpha = pm.Normal("alpha", 0, sigma_group, dims="group")
-
-    # BART for fixed effects
-    mu_bart = pmb.BART("mu_bart", X=X, Y=y, m=50)
-
-    mu = mu_bart + alpha[group_idx]
-    sigma = pm.HalfNormal("sigma", 1)
-    y_obs = pm.Normal("y_obs", mu=mu, sigma=sigma, observed=y)
-```
-
-## Out-of-Sample Prediction
-
-```python
-# Fit model
-with bart_model:
-    idata = pm.sample()
-
-# Predict on new data
-with bart_model:
-    pmb.set_data({"mu": X_new})
-    ppc = pm.sample_posterior_predictive(idata, var_names=["y_obs"])
-
-# Extract predictions
-y_pred = ppc["posterior_predictive"]["y_obs"]
-```
-
-## Convergence Diagnostics
-
-BART uses a particle Gibbs sampler, so standard MCMC diagnostics apply:
-
-```python
-import arviz as az
-
-az.plot_trace_dist(idata, var_names=["sigma"])
-az.summary(idata, var_names=["sigma"])
-
-# For BART predictions, check posterior predictive
-az.plot_ppc_dist(idata)
-```
+This is an interface example, not a claim that a chosen release supplies independent
+tree streams; check the version caution below before choosing chain-based precision.
+PGBART comes from bartrs in this version and updates trees with particle Gibbs.
+Generic NUTS/nutpie/NumPyro/BlackJAX over the training function vector does not
+implement that posterior: the BART RV's symbolic logp is zero while its actual
+prior/update lives in the tree sampler. NUTS energy/divergences concern only its
+continuous block, not tree exploration.
+
+bartrs compiles a Numba likelihood callback for Rust CPU execution. Configuring
+another continuous-step linker does not change that callback. Preserve ctypes or
+object-mode fallback warnings and check dtype at graph construction; float64 input
+arrays do not guarantee every intermediate uses float64.
+
+**Tree RNG caution:** in bartrs 0.4.0 PGBART does not forward its PyMC RNG argument
+to native settings, whose seed defaults to zero. Different pm.sample seeds or
+fresh model instances do not establish independent native tree streams. Do not
+manufacture independence by reshaping or relabelling output. Inspect the current
+[PGBART implementation](https://github.com/pymc-devs/bartrs/blob/58764868f0e1b0984434fa41ea98b948001dd7bb/python/bartrs/pgbart.py)
+and supported seed controls before interpreting R-hat/ESS as independent-chain
+precision. More chains alone cannot repair missing seed propagation.
+
+## Prediction needs tree state and draw pairing
+
+A posterior DataTree holds training mu, continuous parameters and statistics, not
+the native tree histories needed for new X. A reconstructed model plus that file
+is insufficient. In this version completed fits append `(baseline_forest,batches)`
+to the BART Op's `all_trees`; history is completed only at the last expected retained
+iteration. Interrupted traces can lack usable new-input tree state.
+
+For version-compatible native persistence:
+
+1. Save the raw DataTree immediately.
+2. Save baseline/batches using supported TreeArrays state hooks, with package
+   versions, tree/output counts and chronological draw identity. Do not serialize
+   live managers, compiled callbacks or the whole live model.
+3. Reconstruct `PosteriorSampler.from_history(batches,baseline_forest,m,n_outputs)`.
+   Use explicit chronological indices in `sample_posterior(x_float64,draw_indices,None)`;
+   one-output results have shape `(draw,1,row)`.
+4. Pair each function prediction with its corresponding sigma/other likelihood
+   parameter draw before adding new observation noise.
+5. Check reloaded training predictions against saved mu, and new-input predictions
+   against their pre-serialization values without reordering to hide mismatch.
+
+Native state is version-specific and not a resume checkpoint for RNG/adaptation.
+Pickle can execute code: load only state you created and trust, never downloaded
+examples or untrusted artifacts.
+
+A live generic BART predictive call can resample trees randomly from pooled history,
+not in the current trace's chain/draw order. That can lose joint dependence with
+sigma. Audit the intended conditioning rather than assume `set_data` preserves
+pairing. Training mu is enough for an in-sample PPC, not new-X function predictions.
+
+## Diagnose and interpret
+
+Inspect function-space summaries and sigma, not arbitrary tree labels alone.
+Use trace/rank plots, bulk/tail precision, continuous-step diagnostics and supported
+tree-stream independence checks. A few averaged function traces can hide poor
+mixing at particular inputs. Save predictions, validate row/draw identities, separate
+mean/observation intervals and mark extrapolation. Residual dispersion/tail PPCs are
+in-sample criticism; held-out RMSE/coverage or predictive scores require leakage-safe
+splits and do not establish repeated-refit calibration from one batch.
+
+| Utility | Meaning and limits in 0.13.1 |
+|---|---|
+| get_variable_inclusion | Normalized split counts, not probabilities of nonzero effects. Undefined if total splits zero. DataFrame labels follow sorted values; custom labels may not be reordered. |
+| compute_variable_importance | VI/backward/backward_VI compare reduced and full function predictions using squared Pearson correlation, not held-out outcome R² or predictive likelihood. |
+| plot_variable_inclusion / importance / scatter_submodels | Views of those quantities. Library r2_hdi denotes HDIs, not response ETIs. |
+| plot_pdp / plot_ice | Altered-input function summaries, not interventions. Correlated predictors can create unsupported combinations; smoothing changes display, not leaves. |
+| vi_to_kulprit | Candidate feature paths, not projected/refitted models. Inspect whether the full feature set is included. |
+| plot_convergence | Deprecated warning-only route in this release; use actual ArviZ diagnostics. |
+
+Split counts depend on predictor type, split opportunities, correlation and
+regularization. Redundant predictors can substitute; low inclusion is not no effect.
+Reduced/full functions can be sampled independently, so all-variable agreement
+need not be one. Feature selection requires separate predictive assessment.
+`response="linear"`/`"mix"` are experimental; categorical split rules need their
+own encoding/source checks.
+
+Sources: [BART API](https://www.pymc.io/projects/bart/en/latest/api_reference.html),
+[BART distribution](https://github.com/pymc-devs/pymc-bart/blob/39792e8fd410b333d8e2fb1791f6359a84e3f7f4/pymc_bart/bart.py),
+[utilities](https://github.com/pymc-devs/pymc-bart/blob/39792e8fd410b333d8e2fb1791f6359a84e3f7f4/pymc_bart/utils.py),
+[native sampler](https://github.com/pymc-devs/bartrs/blob/58764868f0e1b0984434fa41ea98b948001dd7bb/src/lib.rs),
+[tree persistence](https://github.com/pymc-devs/bartrs/blob/58764868f0e1b0984434fa41ea98b948001dd7bb/src/tree.rs),
+[BART formulation](https://doi.org/10.1214/09-AOAS285).

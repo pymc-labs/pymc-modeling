@@ -1,301 +1,127 @@
-# Mixture Models
+# Mixtures and supported marginalization
 
-## Table of Contents
-- [Finite Mixture Models](#finite-mixture-models)
-- [Label Switching Problem](#label-switching-problem)
-- [Marginalized Mixtures](#marginalized-mixtures)
-- [Diagnostics for Mixtures](#diagnostics-for-mixtures)
+## Model the mixture
 
----
+For conditionally independent observations,
 
-## Finite Mixture Models
+\[
+p(y_i\mid w,\theta)=\sum_k w_k f_k(y_i\mid\theta_k),\qquad
+\log p(y_i\mid w,\theta)=\operatorname{logsumexp}_k[\log w_k+\log f_k(y_i\mid\theta_k)].
+\]
 
-Mixture models assume data comes from multiple subpopulations, each described by its own distribution. Use when:
-- Data shows multimodality
-- Subgroups exist but group membership is unknown
-- You need to cluster observations probabilistically
-
-### Gaussian Mixture
-
-For simple univariate Gaussian mixtures, use `pm.NormalMixture`:
+A mixture selects a component; it is not the distribution of a weighted sum of
+independent component realizations. Weights are nonnegative and sum to one along
+the component axis. `pm.Mixture` requires unnamed `.dist()` components and clones
+them; do not infer shared latent realizations from reused Python objects.
 
 ```python
-import pymc as pm
-import numpy as np
-
-coords = {"component": range(K)}
-
-with pm.Model(coords=coords) as gmm:
-    # Mixture weights (Dirichlet prior)
-    w = pm.Dirichlet("w", a=np.ones(K), dims="component")
-
-    # Component means (with ordering constraint to avoid label switching)
-    mu = pm.Normal("mu", mu=0, sigma=10, dims="component",
-                   transform=pm.distributions.transforms.ordered)
-
-    # Component standard deviations
-    sigma = pm.HalfNormal("sigma", sigma=2, dims="component")
-
-    # Mixture likelihood
-    y = pm.NormalMixture("y", w=w, mu=mu, sigma=sigma, observed=y_obs)
+# w and mu have component shape (K,); scales and y come from the model.
+components = pm.Normal.dist(mu=mu, sigma=component_sd)
+pm.Mixture("response", w=w, comp_dists=components, observed=y, dims="obs_id")
 ```
 
-### General Mixtures with pm.Mixture
+`NormalMixture` is a convenience constructor with sigma (SD) or tau (precision),
+not both. For scalar events the last component batch axis is consumed; for vector
+events the mixture axis precedes event axes. A `(K,D)` MvNormal collection produces
+one D-vector, not D independently chosen components. Components must share support
+dimensionality and be all discrete or all continuous; dedicated hurdles manage
+their own mixed measure.
 
-For mixtures of arbitrary distributions, use `pm.Mixture`:
+## Label symmetry and identification
 
-```python
-with pm.Model(coords=coords) as general_mixture:
-    # Weights
-    w = pm.Dirichlet("w", a=np.ones(K))
+Marginalizing allocations does **not** remove label switching. Exchangeable
+component priors imply equivalent label permutations. Initialize across these
+permutations and dispersed substantive modes. Diagnose label-invariant mixture
+means/variances, predictive densities, sorted means and corresponding weights;
+raw component traces can be misleading. Always permute weights, scales and
+responsibilities with means. Near-coincident components remain hard to interpret.
 
-    # Define component distributions
-    components = [
-        pm.Normal.dist(mu=pm.Normal("mu_0", 0, 5), sigma=pm.HalfNormal("sigma_0", 2)),
-        pm.StudentT.dist(nu=3, mu=pm.Normal("mu_1", 0, 5), sigma=pm.HalfNormal("sigma_1", 2)),
-    ]
+Ordering or genuinely different component priors need scientific justification.
+An ordering convention does not establish distinct biological or social groups.
+Healthy invariant diagnostics do not prove exploration of non-label modes, identify
+K, resolve empty components or prevent unknown-scale collapse. Diagnose geometry;
+higher `target_accept` alone does not remove multimodality or nonidentification.
 
-    # Mixture
-    y = pm.Mixture("y", w=w, comp_dists=components, observed=y_obs)
-```
+## Responsibilities are uncertain allocations
 
-### Mixture of Regressions
+At each posterior draw,
 
-When different subgroups follow different regression relationships:
+\[
+r_{ik}=\exp\{\log w_k+\log f_k(y_i\mid\theta_k)-\log p(y_i\mid w,\theta)\}.
+\]
 
-```python
-with pm.Model(coords={"component": range(K), "obs": range(N)}) as mixture_regression:
-    # Mixture weights
-    w = pm.Dirichlet("w", a=np.ones(K))
+Normalize in log space and integrate over joint posterior draws; substituting
+posterior mean parameters into this nonlinear expression is not equivalent.
+Exchangeable `P(z_i=0|y)` does not identify an externally named class. For distinct
+observations under iid allocations, co-clustering probability averages
+`sum_k r_ik*r_jk`; a self-pair has probability one. Recovered categorical draws add
+simulation uncertainty beyond the conditional probabilities.
 
-    # Component-specific regression coefficients
-    alpha = pm.Normal("alpha", mu=0, sigma=5, dims="component")
-    beta = pm.Normal("beta", mu=0, sigma=2, dims="component")
-    sigma = pm.HalfNormal("sigma", sigma=1, dims="component")
+## Exact discrete marginalization with pymc-extras
 
-    # Component distributions (one regression per component)
-    components = [
-        pm.Normal.dist(mu=alpha[k] + beta[k] * x, sigma=sigma[k])
-        for k in range(K)
-    ]
-
-    y = pm.Mixture("y", w=w, comp_dists=components, observed=y_obs, dims="obs")
-```
-
----
-
-## Label Switching Problem
-
-### The Problem
-
-In mixture models, the likelihood is invariant to permutations of component labels. If you swap "component 1" and "component 2", the joint probability is unchanged. This creates:
-- **Multimodal posterior**: K! equivalent modes
-- **Meaningless component-wise summaries**: Averaging across modes mixes components
-- **Failed diagnostics**: R-hat appears bad because chains find different modes
-
-### Detecting Label Switching
-
-```python
-# Trace plots show "switching" between modes
-az.plot_trace_dist(idata, var_names=["mu"])
-
-# Pair plots show symmetric clusters
-az.plot_pair(idata, var_names=["mu"], coords={"component": [0, 1]})
-```
-
-### Solution 1: Ordering Constraints (Recommended)
-
-Impose an ordering on component parameters to break symmetry:
-
-```python
-import pytensor.tensor as pt
-
-with pm.Model(coords=coords) as gmm_ordered:
-    w = pm.Dirichlet("w", a=np.ones(K))
-
-    # Unordered means on unconstrained space
-    mu_raw = pm.Normal("mu_raw", mu=0, sigma=10, dims="component")
-
-    # Apply ordering constraint: mu[0] < mu[1] < ... < mu[K-1]
-    mu = pm.Deterministic("mu", pt.sort(mu_raw), dims="component")
-
-    sigma = pm.HalfNormal("sigma", sigma=2, dims="component")
-    y = pm.NormalMixture("y", w=w, mu=mu, sigma=sigma, observed=y_obs)
-```
-
-Or use PyMC's built-in ordered transform:
-
-```python
-# This applies the ordered transform directly
-mu = pm.Normal("mu", mu=0, sigma=10, dims="component",
-               transform=pm.distributions.transforms.ordered)
-```
-
-**Note**: Ordering constraints only work when the ordered parameter differs meaningfully across components. For equal component means, use other identifiability strategies.
-
-### Solution 2: Post-Processing (Relabeling)
-
-When ordering constraints aren't natural, relabel samples post-hoc:
-
-```python
-# Simple relabeling based on component means
-def relabel_samples(idata):
-    """Relabel mixture components by sorting means within each draw."""
-    mu = idata["posterior"]["mu"].values  # (chain, draw, component)
-
-    # Get sort indices for each draw
-    sort_idx = np.argsort(mu, axis=-1)
-
-    # Apply to all component-indexed variables
-    for var in ["mu", "sigma", "w"]:
-        if var in idata["posterior"].ds:
-            vals = idata["posterior"][var].values
-            # Gather along component axis using sort indices
-            relabeled = np.take_along_axis(vals, sort_idx, axis=-1)
-            idata["posterior"][var].values = relabeled
-
-    return idata
-```
-
-For more sophisticated relabeling, see the `label.switching` R package or implement the Stephens algorithm.
-
-### When Label Switching Doesn't Matter
-
-If you only care about **predictions** (not component interpretation), label switching is harmless:
-
-```python
-# Posterior predictive is invariant to label permutations
-with model:
-    idata.update(pm.sample_posterior_predictive(idata))
-
-# This is unaffected by label switching
-az.plot_ppc_dist(idata)
-```
-
----
-
-## Marginalized Mixtures
-
-### Why Marginalize
-
-Standard mixture models sample discrete component assignments, which:
-- Requires specialized samplers (not NUTS)
-- Often mixes poorly
-- Scales badly with data size
-
-**Marginalization** integrates out the discrete assignments analytically, enabling efficient NUTS sampling.
-
-### Using pm.Mixture (Automatic Marginalization)
-
-`pm.Mixture` and `pm.NormalMixture` automatically marginalize:
-
-```python
-# This is already marginalized - no discrete latent variables
-y = pm.NormalMixture("y", w=w, mu=mu, sigma=sigma, observed=y_obs)
-```
-
-### pymc-extras MarginalMixture
-
-For more complex marginalizations:
+Check the installed extras release and dependency requirements. In extras 0.14.0,
+PyMC <6.3 and PyTensor <3.3 are required; do not override bounds to combine packages.
+The following interface description is version-specific, not a compatibility promise.
 
 ```python
 import pymc_extras as pmx
+from pymc_extras.marginal import conditional, recover, unmarginalize
 
-with pm.Model() as marginal_model:
-    # Discrete latent variable (will be marginalized)
-    z = pm.Categorical("z", p=w)  # Not sampled directly
-
-    # Conditional distributions
-    y = pmx.MarginalMixture(
-        "y",
-        dist=[
-            pm.Normal.dist(mu[0], sigma[0]),
-            pm.Normal.dist(mu[1], sigma[1]),
-        ],
-        support_idxs=z,
-        observed=y_obs,
-    )
+# original contains comp ~ Categorical(w) and its observed dependent likelihood.
+marginal_model = pmx.marginalize(original, ["comp"])
+idata = pm.sample(model=marginal_model, nuts_sampler="pymc",
+                  tune=tune, draws=draws, chains=chains, random_seed=42)
+idata.to_netcdf("posterior.nc")
+allocations = recover(idata, model=marginal_model, var_names=["comp"],
+                      extend_inferencedata=False, random_seed=43)
+conditional_model = conditional(marginal_model, ["comp"])
+log_conditional = conditional_model.compile_logp(
+    vars=[conditional_model["comp"]], sum=False)
+restored = unmarginalize(marginal_model, ["comp"])
 ```
 
-### When to Use Standard vs Marginalized
+For a nonempty selection, marginalize returns a new model. `recover` defaults to
+extending/returning the supplied DataTree; with `extend_inferencedata=False` it
+returns an xarray Dataset. Empty selections can return their input unchanged.
+`conditional` creates a refactorized joint model: select comp's factor for its
+conditional probabilities, not the full joint logp. Multiple recoveries follow
+a chain rule, not arbitrary independent full conditionals. `unmarginalize`
+restores the original prior, not the conditional. Use `recover`, not deprecated
+`recover_marginals`; `return_samples=False` is not a probability-array API.
 
-| Scenario | Recommendation |
-|----------|----------------|
-| Continuous components, want efficient sampling | Marginalized (`pm.Mixture`) |
-| Need posterior on component assignments | Standard with Gibbs sampling |
-| Large dataset | Marginalized (much faster) |
-| Few observations per component | Either works |
+Enumerable rewrites in 0.14 recognize Bernoulli, Categorical and DiscreteUniform,
+with constant-foldable support sizes/bounds. A separate supported Markov-chain
+rewrite is not a guarantee for arbitrary HMM graphs.
 
----
+- Marginalized variables must be free, not observations relabelled as latent.
+- Registered dependent Deterministics/Potentials can be rejected; an unrecorded
+  expression such as `mu[comp]` is a different graph contract.
+- Batched observationwise dependencies must remain supported. Cross-observation
+  mixing is not generic; scalar splitting can create exponential graph growth.
+- Infinite-support Poisson latents are not finite enumeration. Do not silently
+  truncate or substitute a different model.
+- Normal-Normal conjugate and Laplace-approximate elimination are distinct from
+  arbitrary exact continuous marginalization.
+- Inspect warnings about dependent transform bounds; do not suppress them.
 
-## Diagnostics for Mixtures
+## Zero inflation and hurdles
 
-### Checking for Label Switching
+`psi` means body-component probability, not structural-zero probability.
 
-```python
-# 1. Trace plots should NOT show "switching" patterns
-az.plot_trace_dist(idata, var_names=["mu", "w"])
+| Family | Observation mechanism |
+|---|---|
+| ZeroInflatedPoisson/Binomial/NegativeBinomial | P(0)=1-psi+psi*g(0); positive mass psi*g(y). Body can itself generate zeros. |
+| HurdlePoisson/NegativeBinomial | P(0)=1-psi; positive mass psi*g(y)/(1-g(0)). mu is the untruncated mean. |
+| HurdleGamma/LogNormal | Atom 1-psi at zero, positive density psi*f(y). Gamma beta is rate; LogNormal mu/sigma are log-scale. |
 
-# 2. Rank plots should be uniform (not bimodal)
-az.plot_rank(idata, var_names=["mu"])
+For ZIP, mean is psi*mu and variance psi*mu+psi*(1-psi)*mu². Continuous positive
+bodies have no atom at zero and do not require discrete zero-truncation
+normalization. In PyMC 6.3.1 source the continuous hurdle body is not truncated at
+machine epsilon despite inconsistent docstrings. Model exact, rounded and censored
+zeros differently. Mixed atom/continuous free variables are not ordinary NUTS
+parameters; an observed hurdle likelihood for continuous parameters is different.
 
-# 3. R-hat should be < 1.01 (won't be if label switching occurs)
-summary = az.summary(idata, var_names=["mu", "sigma", "w"])
-print(summary[["r_hat"]])
-```
-
-### Posterior Predictive Checks
-
-```python
-with model:
-    idata.update(pm.sample_posterior_predictive(idata))
-
-# Check if mixture captures data distribution shape
-az.plot_ppc_dist(idata, kind="kde")
-
-# For multimodal data, cumulative is often clearer
-az.plot_ppc_dist(idata, kind="ecdf")
-```
-
-### Model Selection for Number of Components
-
-Compare models with different K using LOO-CV:
-
-```python
-# Fit models with K=2, 3, 4 components
-models = {}
-for K in [2, 3, 4]:
-    with build_mixture_model(K) as model:
-        idata = pm.sample(nuts_sampler="nutpie")
-        models[f"K={K}"] = idata
-
-# Compare
-comparison = az.compare(models)
-print(comparison[["rank", "elpd", "elpd_diff", "weight"]])
-az.plot_compare(comparison)
-```
-
-**Caution**: LOO can be unreliable for mixture models due to high Pareto k values. Consider:
-- K-fold cross-validation when LOO diagnostics fail
-- K-fold cross-validation as a secondary check
-- Domain knowledge about plausible number of components
-
-### Assessing Component Separation
-
-```python
-# Posterior distribution of component means
-az.plot_dist(idata, var_names=["mu"])
-
-# Check overlap between components
-# Well-separated components have non-overlapping HDIs
-summary = az.summary(idata, var_names=["mu"], ci_prob=0.94, ci_kind="hdi")
-print(summary[["mean", "hdi94_lb", "hdi94_ub"]])
-```
-
----
-
-## See Also
-
-- [priors.md](priors.md) - Prior selection for mixture components
-- [diagnostics.md](diagnostics.md) - General convergence diagnostics
-- [troubleshooting.md](troubleshooting.md) - Common modeling pitfalls
+Sources: [PyMC mixture implementation](https://github.com/pymc-devs/pymc/blob/v6.3.1/pymc/distributions/mixture.py),
+[extras marginalization](https://www.pymc.io/projects/extras/en/stable/api/marginalization.html),
+[extras source](https://github.com/pymc-devs/pymc-extras/tree/v0.14.0/pymc_extras/model/marginal),
+[extras dependency metadata](https://github.com/pymc-devs/pymc-extras/blob/v0.14.0/pyproject.toml).
