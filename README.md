@@ -32,20 +32,20 @@ No custom installer or running service is required.
 ### Published repository (publication required)
 
 Use the following commands only after the matching skills and marketplace
-manifest have been published to `fonnesbeck/pymc-modeling`. A local checkout,
+manifest have been published to `pymc-labs/pymc-modeling`. A local checkout,
 installer discovery or manifest validation does not establish remote availability
 or successful plugin installation.
 
 For the Skills CLI:
 
 ```bash
-npx skills add fonnesbeck/pymc-modeling
+npx skills add pymc-labs/pymc-modeling
 ```
 
 For a Claude Code managed bundle:
 
 ```text
-/plugin marketplace add fonnesbeck/pymc-modeling
+/plugin marketplace add pymc-labs/pymc-modeling
 /plugin install pymc-modeling@pymc-modeling
 ```
 
