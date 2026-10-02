@@ -2,9 +2,9 @@
 
 Distributional regression uses ordinary PyMC likelihoods with separate linked
 predictors for distribution parameters; it needs no special GAMLSS class.
-Spline utilities described here are in `pymc_extras.utils.spline` for extras 0.14.0.
-That release requires PyMC >=6.2,<6.3, PyTensor >=3.2.3,<3.3 and PreliZ >=0.27,<0.28.
-Check current APIs/dependencies rather than override incompatible package bounds.
+Spline utilities described here are in `pymc_extras.utils.spline` for extras 0.15.1.
+Start with [extras compatibility](pymc-extras.md); respect the installed release's
+dependency bounds rather than overriding them.
 
 ## Use the actual spline interface
 
@@ -24,7 +24,7 @@ knots = np.r_[np.zeros(d), np.linspace(0, 1, k-d+1), np.ones(d)]
 ```
 
 There are k+d+1 knots including repeats and endpoint multiplicity d+1. Require
-k>=d+1 and enough distinct predictor locations. The 0.14 basis Op has no coordinate
+k>=d+1 and enough distinct predictor locations. The 0.15.1 basis Op has no coordinate
 gradient or JAX/Numba lowering: precompute a fixed observed-x matrix and sample
 coefficient expressions, not uncertain x through an unsupported derivative.
 
@@ -124,7 +124,7 @@ endpoint ratios, Beta boundary mass and NB zero probability
 chosen from outcomes. Failed plausibility should prompt a reasoned prior/model
 revision, not clipping or seed searches.
 
-Sources: [spline implementation](https://github.com/pymc-devs/pymc-extras/blob/v0.14.0/pymc_extras/utils/spline.py),
-[extras dependencies](https://github.com/pymc-devs/pymc-extras/blob/v0.14.0/pyproject.toml),
+Sources: [spline implementation](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/utils/spline.py),
+[extras dependencies](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pyproject.toml),
 [PyMC continuous families](https://github.com/pymc-devs/pymc/blob/v6.3.1/pymc/distributions/continuous.py),
 [discrete families](https://github.com/pymc-devs/pymc/blob/v6.3.1/pymc/distributions/discrete.py).

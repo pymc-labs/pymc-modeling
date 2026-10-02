@@ -3,10 +3,12 @@ name: pymc-modeling
 description: >-
   Build, revise, and debug Bayesian models with PyMC. Use when choosing
   likelihoods and priors, specifying model/data dimensions, fitting hierarchical
-  models, GPs, time series, mixtures, BART or splines, selecting inference methods,
-  resolving failed initial evaluation or model/data shape errors, generating
-  predictions, or testing model code with simulated data and simulation-based
-  calibration (SBC). Covers PyMC 6+, PyTensor 3+ and ArviZ 1.0 DataTree workflows.
+  models, GPs, time series, mixtures, BART or splines, using pymc-extras
+  distributions, marginalization, state-space models or model-building tools,
+  selecting inference methods, resolving failed initial evaluation or model/data
+  shape errors, generating predictions, or testing model code with simulated data
+  and simulation-based calibration (SBC). Covers PyMC 6+, PyTensor 3+ and ArviZ
+  1.0 DataTree workflows.
 ---
 
 # PyMC modeling
@@ -15,6 +17,10 @@ Choose a useful starting point: a simple scaffold, an established subject-matter
 model, or a decomposition of a larger target model. Expand, simplify or branch
 as the question, data and checks warrant. Use the consuming project's data and
 Python environment; check installed APIs and package compatibility.
+
+For `pymc-extras` tasks, start with [feature selection and compatibility](references/pymc-extras.md),
+then load only the relevant workflow reference. Prefer its supported algorithms
+to bespoke implementations; do not use an extension merely because it is installed.
 
 ## Choose the primary task
 
@@ -81,6 +87,10 @@ conventions, not universal Bayesian workflow requirements. Choose them for the t
 | Group effects, pooling and parameterization | [Hierarchical models](references/hierarchical.md) |
 | Outcome support, censoring, multivariate families and Jacobians | [Likelihoods](references/likelihoods.md) |
 | Algorithms, backends, budgets and persistence | [Sampling](references/sampling.md) |
+| pymc-extras feature selection, compatibility and validation | [PyMC Extras](references/pymc-extras.md) |
+| Markov chains, specialized counts, extreme values and histogram likelihoods | [Extras distributions](references/extras-distributions.md) |
+| Kalman-marginalized models, structural components and forecasting | [Extras state-space workflows](references/extras-statespace.md) |
+| Prior factories, model packaging, VIP and posterior-as-prior transfer | [Extras model tools](references/extras-model-tools.md) |
 | Variational, Laplace and Pathfinder approximations | [Approximate inference](references/approximate-inference.md) |
 | Covariance models and finite-basis error | [Gaussian processes](references/gaussian-processes.md) |
 | Temporal dependence, differential equations and forecasting | [Time series](references/time-series.md) |

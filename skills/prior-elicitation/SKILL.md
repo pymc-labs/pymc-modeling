@@ -50,7 +50,11 @@ quantity's meaning to a distribution, then check its observable implications.
   analytic checks and power reweighting.
 - [Shrinkage and regularization](references/shrinkage.md) — regularized horseshoe
   scales, R2D2 variance allocation, geometry and interpretation.
+- For optional pymc-extras prior factories, serialization, censoring and
+  posterior-as-prior transfer, see [extras model tools](../pymc-modeling/references/extras-model-tools.md)
+  when `pymc-modeling` is installed.
 
 Use the installed package's version-matched API documentation when adapting the
 examples. PreliZ widgets need an interactive notebook; pymc-extras is optional
-and only needed for its R2D2 helper. This skill does not require another skill.
+and needed only for its R2D2 helper or optional factory workflows. The elicitation
+and shrinkage references remain usable without another skill.

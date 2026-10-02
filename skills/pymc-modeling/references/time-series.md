@@ -111,46 +111,32 @@ PyTensor derivative-protocol compatibility in the installed release.
 
 ## State-space models
 
-pymc-extras provides BayesianSARIMAX, VARMAX, ETS, DynamicFactor and composable
-level/trend/seasonal/cycle/regression models. Choose from the scientific target;
-check identification, phase, initial state and measurement noise explicitly.
-Extras 0.14.0 requires PyMC <6.3/PyTensor <3.3; respect dependency bounds.
+For linear Gaussian state-space models, use the focused
+[pymc-extras state-space reference](extras-statespace.md). It covers 0.15.1 model
+selection, structural composition, named priors, graph construction, fitting,
+state simulation, missing observations, exogenous scenarios and future forecasts.
 
-For SARIMAX, construct priors with `ss.param_dims`, use the exact
-`ss.observed_states` columns and a validated time-indexed training DataFrame, then:
+Retain the checks that make these workflows scientifically valid:
 
-1. `build_statespace_graph` on training data only.
-2. Draw prior parameters and `sample_unconditional_prior` trajectories for prior
-   plausibility. A conditional prior filter has already used outcomes.
-3. Fit/save parameter posterior, diagnose it, and check a small independent Kalman
-   recursion for filtered means/covariances with matched jitter/initial law.
-4. `sample_conditional_posterior` yields retrospective filtered/predicted/smoothed
-   states; `sample_unconditional_posterior` yields model replications. Neither is
-   a future forecast.
-5. `forecast(idata,start=origin,periods=H,filter_output="filtered")` requests the
-   intended conditioning explicitly (the 0.14 default is smoothed). That version
-   returns the predictive child directly: `forecast["forecast_observed"]`, not
-   another posterior_predictive group. Check that H outputs exclude the origin.
+- Build and fit on training data only; a filtered state from a full-series
+  parameter fit still leaks later observations through the parameter posterior.
+- Distinguish initial-state law, process shocks and measurement noise. Forecast
+  from a terminal state distribution, not a noisy last measurement treated as exact.
+- Check prior trajectories with unconditional prior simulation; conditional prior
+  state reconstruction has already used outcomes.
+- Compare filtered means and covariances against an independent small Kalman
+  recursion with the same initialization and jitter. Healthy parameter sampling
+  does not establish correct state simulation or forecasting.
+- Check horizon length, exclusion of the conditioning origin, seasonal phase,
+  future input alignment and both observation and latent-state uncertainty.
+  State reconstruction and unconditional posterior replication are not forecasts.
 
-For latent AR(1) terminal filter `(mT,VT)`, future observation mean/variance are
-`phi**h*mT` and
-`phi**(2*h)*VT + sigma_state²*sum(phi**(2*j)) + sigma_measurement²`.
-Check both means and covariance, with initial-state and future innovations
-independent under this model. Extras 0.14 simulation RNG dependencies deserve
-inspection: sharing an unadvanced generator between initial draw and scan could
-correlate them. Treat this as a version-specific numerical check, not permission
-to modify the target variance. A valid parameter fit does not prove state-simulation
-or forecast accuracy; broadcasting failures are separate from sampler health.
-
-Differencing d/D>0 requires nonstationary initialization. In extras 0.14 the fast
-representation supports internal integrated states while interpretable does not.
-Align exogenous scenarios by clock/identity before forecasting; row counts or an
-automatically generated index do not establish alignment. Seasonal, MA and
-multivariate structures need their own forecast-state and scenario checks.
+Preserve multi-step temporal covariance when evaluating trajectories. For a latent
+AR(1) terminal filter `(mT,VT)`, conditional on parameters, horizon-h observation
+mean/variance are `phi**h*mT` and
+`phi**(2*h)*VT + sigma_state**2*sum(phi**(2*j) for j in range(h)) + sigma_measurement**2`.
+Use this as a small numerical oracle, not a replacement for posterior integration.
 
 Sources: [temporal distributions](https://www.pymc.io/projects/docs/en/stable/api/distributions/timeseries.html),
 [temporal source](https://github.com/pymc-devs/pymc/blob/v6.3.1/pymc/distributions/timeseries.py),
-[ODE source](https://github.com/pymc-devs/pymc/blob/v6.3.1/pymc/ode/ode.py),
-[SARIMAX](https://www.pymc.io/projects/extras/en/stable/statespace/generated/pymc_extras.statespace.models.BayesianSARIMAX.html),
-[state-space implementation](https://github.com/pymc-devs/pymc-extras/blob/v0.14.0/pymc_extras/statespace/core/statespace.py),
-[state simulation](https://github.com/pymc-devs/pymc-extras/blob/v0.14.0/pymc_extras/statespace/filters/distributions.py).
+[ODE source](https://github.com/pymc-devs/pymc/blob/v6.3.1/pymc/ode/ode.py).

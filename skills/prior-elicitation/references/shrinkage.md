@@ -62,12 +62,14 @@ relative to least squares. `sum(1-kappa)` is continuous complexity, not a discre
 selected-variable count. With correlated X, this scalar interpretation is only
 approximate; marginal posterior shrinkage is not one fixed kappa.
 
-## R2D2M2CP in pymc-extras 0.14.0
+## R2D2M2CP in pymc-extras 0.15.1
 
 This optional helper returns a named tuple with **`eps` and `beta`**, not
 `(beta,r2)`. It accepts scale information, not positional design/response arrays:
 
 ```python
+import numpy as np
+import pymc as pm
 import pymc_extras as pmx
 
 with pm.Model(coords={"feature": ["a", "b", "c"]}):
@@ -80,6 +82,10 @@ with pm.Model(coords={"feature": ["a", "b", "c"]}):
     )
     # Linear predictor uses allocation.beta; Normal noise SD is allocation.eps.
 ```
+
+`allocation.eps` is a symbolic residual-scale expression, not a separately named
+RV. Use it directly in the likelihood; wrap it in `pm.Deterministic("residual_sd",
+allocation.eps)` inside the model if it needs its own saved draws.
 
 `output_sigma` is total outcome scale, not residual scale. `input_sigma` contains
 positive predictor SDs. If predictors were already divided by SD, use ones to
@@ -100,7 +106,7 @@ controls how unequal allocations are; it does not fix a sparse count. The R2
 budget is not the exact realized sample variance explained in every draw,
 especially with correlated predictors. R2D2 is not restricted to dense effects.
 
-**Version-specific caution:** in 0.14.0, omitting all allocation arguments makes
+**Version-specific caution:** in 0.15.1, omitting all allocation arguments makes
 `_phi` return ones rather than normalized `1/p`. If a shared variance budget is
 intended, provide normalized `variance_explained` or explicit positive Dirichlet
 concentrations through `variables_importance`. `r2_std=None` fixes R2 rather than
@@ -135,7 +141,7 @@ multilevel broadcasting semantics; do not infer them from the symmetric example.
 
 - [Piironen and Vehtari: regularized horseshoe and sparsity calibration](https://arxiv.org/pdf/1707.01694),
   especially the Gaussian/scale assumptions behind equations 2.8, 2.11 and 3.12.
-- [pymc-extras 0.14.0 R2D2M2CP source](https://github.com/pymc-devs/pymc-extras/blob/v0.14.0/pymc_extras/distributions/multivariate/r2d2m2cp.py).
+- [pymc-extras 0.15.1 R2D2M2CP source](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/distributions/multivariate/r2d2m2cp.py).
 - [R2D2M2 research](https://arxiv.org/abs/2208.07132) and
   [CP implementation proposal](https://github.com/pymc-devs/pymc-extras/pull/137).
   The CP implementation should not be assumed identical to every R2D2 prior.

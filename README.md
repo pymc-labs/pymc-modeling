@@ -8,7 +8,7 @@ a folder of instructions and focused references in the
 
 | Skill | Use it for |
 |---|---|
-| [pymc-modeling](skills/pymc-modeling/SKILL.md) | Model specification, inference, predictions and specialized model families |
+| [pymc-modeling](skills/pymc-modeling/SKILL.md) | Model specification, inference, predictions, specialized model families and pymc-extras workflows |
 | [prior-elicitation](skills/prior-elicitation/SKILL.md) | Prior selection, elicitation, predictive checks and shrinkage |
 | [arviz-diagnostics](skills/arviz-diagnostics/SKILL.md) | MCMC diagnostics, predictive checks, LOO and model comparison |
 | [pytensor-workflows](skills/pytensor-workflows/SKILL.md) | Symbolic graphs, shapes, compilation, gradients and custom Ops |
@@ -74,12 +74,19 @@ your agent's skill mechanism. For example:
 - “Check whether these priors imply plausible outcomes.”
 - “Diagnose this posterior and assess whether LOO is reliable.”
 - “Find the shape or gradient error in this PyTensor graph.”
+- “Use pymc-extras to marginalize latent states or fit and forecast a structural time series.”
 
 The guidance targets PyMC 6+, PyTensor 3+ and ArviZ's DataTree API. Code examples
 use the consuming project's compatible Python environment. Optional packages
 such as PreliZ, pymc-extras, BART and alternative backends are needed only for
 the workflows that use them. Consult version-matched documentation; do not
 replace a working environment just to install these instructions.
+
+The [pymc-extras guide](skills/pymc-modeling/references/pymc-extras.md) routes to
+inference, exact/approximate marginalization, specialized distributions,
+state-space forecasting, prior factories and model-building tools. Its examples
+target extras 0.15.1 and identify unsupported operations and release-specific
+limits; inspect installed APIs when adapting them to another release.
 
 ## Maintainer checks
 
@@ -96,6 +103,18 @@ pixi run --locked -e pytorch test -m pytorch
 pixi run --locked -e mlx test -m mlx
 ```
 
+For the compatible PyMC Extras stack without changing the default environment:
+
+```bash
+pixi install --locked -e extras
+pixi run --locked -e extras python -c "import pymc_extras; print(pymc_extras.__version__)"
+```
+
+This environment includes histogram and grouped NetCDF support for executing the
+extras reference examples. The existing pytest suite does not validate all extras
+features; runtime checks of documented examples do not establish scientific
+adequacy or accelerator compatibility.
+
 The default environment checks the base Op and Numba; other backend tests skip
 when their optional packages are absent. The named environments install the
 corresponding backend, with CPU-only PyTorch and MLX packages. `pixi.lock` records
@@ -103,7 +122,8 @@ exact resolved versions, and each pytest session prints the versions actually
 exercised. Tests compare values to SciPy and weighted derivatives and curvature
 to analytic references, and check support boundaries and input errors.
 
-The GitHub Actions workflow runs all four environments with the lockfile.
+The GitHub Actions workflow runs the four custom-Op test environments with the lockfile,
+not the optional extras examples.
 Use `pixi run check` and `pixi run format` for regression-test code quality.
 These maintainer tools are not needed to install or use the skills.
 
