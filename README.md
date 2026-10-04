@@ -1,7 +1,7 @@
 # pymc-modeling
 
-Agent skills for Bayesian modeling with PyMC, PyTensor and ArviZ. Each skill is
-a folder of instructions and focused references in the
+Agent skills for Bayesian modeling with PyMC, PyTensor and ArviZ, and experiment
+tracking with MLflow. Each skill is a folder of instructions and focused references in the
 [Agent Skills format](https://agentskills.io/specification).
 
 ## Skills
@@ -12,6 +12,7 @@ a folder of instructions and focused references in the
 | [prior-elicitation](skills/prior-elicitation/SKILL.md) | Prior selection, elicitation, predictive checks and shrinkage |
 | [arviz-diagnostics](skills/arviz-diagnostics/SKILL.md) | MCMC diagnostics, predictive checks, LOO and model comparison |
 | [pytensor-workflows](skills/pytensor-workflows/SKILL.md) | Symbolic graphs, shapes, compilation, gradients and custom Ops |
+| [pymc-mlflow](skills/pymc-mlflow/SKILL.md) | MLflow experiment tracking, DataTree artifacts, PyMC-Marketing autologging and MMM persistence |
 
 ## Install
 
@@ -78,9 +79,22 @@ your agent's skill mechanism. For example:
 
 The guidance targets PyMC 6+, PyTensor 3+ and ArviZ's DataTree API. Code examples
 use the consuming project's compatible Python environment. Optional packages
-such as PreliZ, pymc-extras, BART and alternative backends are needed only for
-the workflows that use them. Consult version-matched documentation; do not
-replace a working environment just to install these instructions.
+such as PreliZ, pymc-extras, BART, MLflow, PyMC-Marketing and alternative backends
+are needed only for the workflows that use them. Consult version-matched
+documentation; do not replace a working environment just to install these
+instructions.
+
+The [MLflow skill](skills/pymc-mlflow/SKILL.md) supports ordinary PyMC tracking
+without PyMC-Marketing. Its optional integration examples target PyMC-Marketing
+1.2.0, which requires PyMC `>=6.3.1,<6.4.0` and ArviZ `>=1.2.0,<2.0`, plus a
+separate MLflow installation. Saving posterior artifacts, restoring native
+models and registering MMM prediction wrappers are distinct from deploying a
+service; the references make those boundaries explicit.
+
+PyMC-Marketing 1.2.0's built-in MMM pyfunc prediction route forwards an unsupported
+`original_scale` argument. The [MMM reference](skills/pymc-mlflow/references/mmm-persistence.md)
+documents this reproduced upstream limitation and the working native
+restoration/prediction route; wrapper registration is not a serving guarantee.
 
 The [pymc-extras guide](skills/pymc-modeling/references/pymc-extras.md) routes to
 inference, exact/approximate marginalization, specialized distributions,
@@ -126,6 +140,14 @@ The GitHub Actions workflow runs the four custom-Op test environments with the l
 not the optional extras examples.
 Use `pixi run check` and `pixi run format` for regression-test code quality.
 These maintainer tools are not needed to install or use the skills.
+
+The MLflow references contain standalone Python examples for manual tracking,
+autologging and native MMM/CLV restoration; they are not covered by the custom-Op
+pytest suite. Execute them in separate processes and disposable working
+directories with their version-matched dependencies. Their checks exercise
+artifact content, searchable metadata and restored predictions, not scientific
+adequacy. The MMM reference separates its intentional upstream-failure
+reproduction from the successful native and local-registry examples.
 
 ## License
 
