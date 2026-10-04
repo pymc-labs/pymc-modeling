@@ -25,6 +25,8 @@ Python environment; check installed APIs and package compatibility.
   `arviz-diagnostics` when available.
 - Repair symbolic computation, broadcasting, gradients or compilation: use
   `pytensor-workflows` when available.
+- Track experiments, preserve MLflow artifacts or restore a logged MMM model: use
+  `pymc-mlflow` when available.
 
 Multipart requests can use more than one skill. The references below support
 modeling when specialist skills are not installed.
