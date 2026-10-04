@@ -1,0 +1,35 @@
+[workspace]
+channels = ["conda-forge"]
+name = "pymc-modeling"
+platforms = [{ platform = "linux-64", glibc = "2.35" }]
+
+[tasks]
+test = "pytest"
+check = "ruff check tests"
+format = "ruff format tests"
+
+[dependencies]
+python = ">=3.13,<3.15"
+
+[pypi-dependencies]
+pytensor = ">=3.3,<3.4"
+numpy = ">=2,<3"
+scipy = ">=1,<2"
+numba = ">=0.67,<0.68"
+pytest = ">=9,<10"
+ruff = "*"
+
+[feature.jax.pypi-dependencies]
+jax = ">=0.11,<0.12"
+
+[feature.pytorch.pypi-dependencies]
+torch = { version = ">=2.14,<3", index = "https://download.pytorch.org/whl/cpu" }
+
+[feature.mlx.pypi-dependencies]
+mlx = { version = ">=0.32,<0.33", extras = ["cpu"] }
+
+[environments]
+default = { features = [], solve-group = "cpu" }
+jax = { features = ["jax"], solve-group = "cpu" }
+pytorch = { features = ["pytorch"], solve-group = "cpu" }
+mlx = { features = ["mlx"], solve-group = "cpu" }

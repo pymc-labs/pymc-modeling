@@ -1,122 +1,138 @@
-# Python Analytics Skills
+# pymc-modeling
 
-A plugin for Claude Code and other AI coding platforms providing [Agent Skills](https://agentskills.io) for Bayesian modeling and reactive notebooks. Packages specialized knowledge for PyMC and marimo into skills that Claude loads on-demand.
+Agent skills for Bayesian modeling with PyMC, PyTensor and ArviZ, and experiment
+tracking with MLflow. Each skill is a folder of instructions and focused references in the
+[Agent Skills format](https://agentskills.io/specification).
 
 ## Skills
 
-| Skill | Description |
-|-------|-------------|
-| [pymc-modeling](skills/pymc-modeling/) | Bayesian statistical modeling with PyMC v5+. Covers model specification, MCMC inference (nutpie, NumPyro), ArviZ diagnostics, hierarchical models, GLMs, GPs, BART, time series, and more. |
-| [pymc-mlflow](skills/pymc-mlflow/) | MLflow integration for PyMC models. Covers experiment tracking, InferenceData artifact management, autologging with pymc_marketing.mlflow, metadata strategies, and production deployment patterns for MMM and CLV models. |
-| [pymc-testing](skills/pymc-testing/) | Testing PyMC models with pytest. Covers mock sampling with `pymc.testing.mock_sample`, pytest fixtures, and the distinction between fast structure-only tests (mocking) and slow posterior inference tests. |
-| [marimo-notebook](skills/marimo-notebook/) | Reactive Python notebooks with marimo. Covers CLI, UI components, layout, SQL integration, caching, state management, and wigglystuff widgets. |
+| Skill | Use it for |
+|---|---|
+| [pymc-modeling](skills/pymc-modeling/SKILL.md) | Model specification, inference, predictions and specialized model families |
+| [prior-elicitation](skills/prior-elicitation/SKILL.md) | Prior selection, elicitation, predictive checks and shrinkage |
+| [arviz-diagnostics](skills/arviz-diagnostics/SKILL.md) | MCMC diagnostics, predictive checks, LOO and model comparison |
+| [pytensor-workflows](skills/pytensor-workflows/SKILL.md) | Symbolic graphs, shapes, compilation, gradients and custom Ops |
+| [pymc-mlflow](skills/pymc-mlflow/SKILL.md) | MLflow experiment tracking, DataTree artifacts, PyMC-Marketing autologging and MMM persistence |
 
-## Installation
+## Install
 
-### Via npx (Recommended — works across agents)
+### Local checkout
 
-```bash
-npx skills add pymc-labs/python-analytics-skills
-```
-
-One command, works with Claude Code, Cursor, Gemini CLI, and 15+ other agents.
-
-### As a Claude Code Plugin
-
-Two-step process using Claude Code slash commands:
+From the repository root, use the [Skills CLI](https://github.com/vercel-labs/skills):
 
 ```bash
-/plugin marketplace add pymc-labs/python-analytics-skills
-/plugin install analytics@pymc-labs-python-analytics-skills
+npx skills add .
 ```
 
-Installs all skills plus the keyword-suggestion hook. Supports `/plugin update` for future updates.
+Choose the skills and agents you want.
 
-### Manual Installation
+For a local Claude Code managed bundle, run these commands from the repository
+root inside Claude Code:
+
+```text
+/plugin marketplace add ./
+/plugin install pymc-modeling@pymc-modeling
+```
+
+This local installation does not require the renamed marketplace to be published.
+Use a clean checkout for this installation: Claude Code can copy untracked
+files too, including a maintainer's `.pixi/` environments.
+
+Or copy individual directories from `skills/` into your agent's supported skills
+location. Keep the whole directory, including references, any scripts and `LICENSE`.
+No custom installer or running service is required.
+
+### Published repository (publication required)
+
+Use the following commands only after the matching skills and marketplace
+manifest have been published to `pymc-labs/pymc-modeling`. The published manifest
+must name both the marketplace and its plugin `pymc-modeling`. Until then, use
+the local-checkout instructions above. Local validation does not establish remote
+availability or successful remote plugin installation.
+
+For the Skills CLI:
 
 ```bash
-git clone https://github.com/pymc-labs/python-analytics-skills.git
-cd python-analytics-skills
-./install.sh claude              # Claude Code
-./install.sh all                 # All platforms
-./install.sh claude -- pymc-modeling  # Specific skill only
+npx skills add pymc-labs/pymc-modeling
 ```
 
-### Utility Commands
+For a Claude Code managed bundle:
+
+```text
+/plugin marketplace add pymc-labs/pymc-modeling
+/plugin install pymc-modeling@pymc-modeling
+```
+
+Choose either the plugin or the Skills CLI/manual installation, not both, to
+avoid duplicate skills.
+
+## Use
+
+Ask your agent to perform a relevant task, or invoke the skill by name using
+your agent's skill mechanism. For example:
+
+- “Build a hierarchical model for these grouped observations.”
+- “Check whether these priors imply plausible outcomes.”
+- “Diagnose this posterior and assess whether LOO is reliable.”
+- “Find the shape or gradient error in this PyTensor graph.”
+- “Track this PyMC fit in MLflow and retrieve its posterior artifacts.”
+- “Restore this logged MMM and verify its prediction interface.”
+
+The guidance targets PyMC 6+, PyTensor 3+ and ArviZ's DataTree API. Code examples
+use the consuming project's compatible Python environment. Optional packages
+such as PreliZ, pymc-extras, BART, MLflow, PyMC-Marketing and alternative backends
+are needed only for the workflows that use them. Consult version-matched
+documentation; do not replace a working environment just to install these
+instructions.
+
+The [MLflow skill](skills/pymc-mlflow/SKILL.md) supports ordinary PyMC tracking
+without PyMC-Marketing. Its optional integration examples target PyMC-Marketing
+1.2.0, which requires PyMC `>=6.3.1,<6.4.0` and ArviZ `>=1.2.0,<2.0`, plus a
+separate MLflow installation. Saving posterior artifacts, restoring native
+models and registering MMM prediction wrappers are distinct from deploying a
+service; the references make those boundaries explicit.
+
+PyMC-Marketing 1.2.0's built-in MMM pyfunc prediction route forwards an unsupported
+`original_scale` argument. The [MMM reference](skills/pymc-mlflow/references/mmm-persistence.md)
+documents this reproduced upstream limitation and the working native
+restoration/prediction route; wrapper registration is not a serving guarantee.
+
+## Maintainer checks
+
+These checks exercise the educational custom Op and its CPU backends, not the
+full set of modeling examples or accelerator hardware. They do not install
+anything into a consuming project's environment.
+
+The Linux test environments require glibc 2.35 or newer. From this repository:
 
 ```bash
-# List available skills with descriptions
-./install.sh --list
-
-# Validate skill structure
-./install.sh --validate
+pixi run --locked test
+pixi run --locked -e jax test -m jax
+pixi run --locked -e pytorch test -m pytorch
+pixi run --locked -e mlx test -m mlx
 ```
 
-## Platform Support
+The default environment checks the base Op and Numba; other backend tests skip
+when their optional packages are absent. The named environments install the
+corresponding backend, with CPU-only PyTorch and MLX packages. `pixi.lock` records
+exact resolved versions, and each pytest session prints the versions actually
+exercised. Tests compare values to SciPy and weighted derivatives and curvature
+to analytic references, and check support boundaries and input errors.
 
-| Platform | Install Location | Auto-Discovered |
-|----------|-----------------|-----------------|
-| Claude Code | `~/.claude/skills/` | Yes |
-| OpenCode | `~/.config/opencode/skills/` | Yes |
-| Gemini CLI | `~/.gemini/skills/` | Yes |
-| Cursor | `~/.cursor/skills/` | Yes |
-| VS Code Copilot | `~/.copilot/skills/` | Yes |
+The GitHub Actions workflow runs all four environments with the lockfile.
+Use `pixi run check` and `pixi run format` for regression-test code quality.
+These maintainer tools are not needed to install or use the skills.
 
-## Plugin Structure
-
-```
-python-analytics-skills/
-├── .claude-plugin/
-│   ├── marketplace.json    # Plugin registry metadata
-│   └── plugin.json         # Plugin configuration
-├── skills/
-│   ├── pymc-modeling/
-│   │   ├── SKILL.md        # Main skill instructions
-│   │   └── references/     # 12 detailed reference docs
-│   ├── pymc-mlflow/
-│   │   ├── SKILL.md        # Main skill instructions
-│   ├── pymc-testing/
-│   │   ├── SKILL.md        # Main skill instructions
-│   │   └── references/
-│   └── marimo-notebook/
-│       ├── SKILL.md        # Main skill instructions
-│       ├── references/     # 4 reference docs
-│       ├── assets/         # Notebook templates
-│       └── scripts/        # Conversion utilities
-├── hooks/
-│   ├── hooks.json          # Hook configuration
-│   └── suggest-skill.sh    # Keyword-based skill suggestion
-├── install.sh              # Multi-platform installer
-├── package.json            # npm package metadata
-└── skills.json             # Skills registry
-```
-
-## Hooks
-
-The plugin includes a `UserPromptSubmit` hook that suggests relevant skills when it detects keywords in your prompt:
-
-- **PyMC + MLflow keywords**: mlflow, experiment tracking, artifact logging, model registry, deployment, mmm, clv, marketing mix model, customer lifetime value
-- **PyMC keywords**: bayesian, pymc, mcmc, posterior, inference, arviz, prior, sampling, divergence, hierarchical model, gaussian process, bart, etc.
-- **Marimo keywords**: marimo, reactive notebook, @app.cell, mo.ui, etc.
-
-## Troubleshooting
-
-**Skill not loading:**
-
-1. Verify the skill directory exists with a valid `SKILL.md`
-2. Run `./install.sh --validate` to check structure
-3. For Claude Code plugins, check `claude --debug` for hook/skill loading errors
-
-**Hook not firing:**
-
-1. Hooks load at session start -- restart Claude Code after changes
-2. Use `/hooks` in Claude Code to see loaded hooks
-3. Test the hook script directly: `echo '{"user_prompt": "bayesian model"}' | bash hooks/suggest-skill.sh`
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on adding new skills.
+The MLflow references contain standalone Python examples for manual tracking,
+autologging and native MMM/CLV restoration; they are not covered by the custom-Op
+pytest suite. Execute them in separate processes and disposable working
+directories with their version-matched dependencies. Their checks exercise
+artifact content, searchable metadata and restored predictions, not scientific
+adequacy. The MMM reference separates its intentional upstream-failure
+reproduction from the successful native and local-registry examples.
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+Adapted from [pymc-labs/pymc-modeling](https://github.com/pymc-labs/pymc-modeling/tree/b41e66104685ba06fce89091cf0706e9bc21872e).
+Licensed under [MIT](LICENSE). Each skill includes the same license for
+standalone distribution, including the original PyMC Labs copyright notice.
