@@ -57,21 +57,47 @@ observations under iid allocations, co-clustering probability averages
 `sum_k r_ik*r_jk`; a self-pair has probability one. Recovered categorical draws add
 simulation uncertainty beyond the conditional probabilities.
 
-## Exact discrete marginalization with pymc-extras
+## Choose supported elimination with pymc-extras
 
-Check the installed extras release and dependency requirements. In extras 0.14.0,
-PyMC <6.3 and PyTensor <3.3 are required; do not override bounds to combine packages.
-The following interface description is version-specific, not a compatibility promise.
+This section targets **pymc-extras 0.15.1** and its compatible PyMC 6.3/PyTensor 3.3
+environment; see [extras selection and installation](pymc-extras.md).
+`pmx.marginalize(model, rvs_to_marginalize=(), *, laplace_approx=None,
+minimizer_kwargs=None)` clones a nonempty selection into a new model. Ordinary
+selections request **exact** supported rewrites; `laplace_approx={name_or_rv: Q}`
+explicitly requests **approximate** integration. Laplace keys need not also appear
+in the exact selection. Unsupported exact cases raise rather than silently become
+Laplace approximations.
+
+| Strategy in 0.15.1 | Supported scope |
+|---|---|
+| Finite enumeration | Bernoulli, Categorical, DiscreteUniform; supported observationwise/batched graphs. Domains can remain symbolic. |
+| Markov-chain rewrite | `pmx.DiscreteMarkovChain` with its supported transition/emission graph; not arbitrary HMM recognition. |
+| Exact continuous conjugacy | Elementwise Normal prior → one Normal dependent with affine mean and latent-independent scale. |
+| Laplace integration | A continuous Gaussian latent vector with supplied prior precision `Q`; mode/curvature approximation, not arbitrary exact conjugacy. |
+
+Beta–Binomial, Gamma–Poisson, Dirichlet–Categorical and general MvNormal
+conjugacy are **not** additional registered exact rewrites in this release.
+An analytic integral available on paper is not a guarantee this graph API
+recognizes it. Derive a valid explicit marginal likelihood if needed, preserving
+its dependence structure and a separate generative/predictive model.
+
+### Exact discrete marginalization and recovery
 
 ```python
+import pymc as pm
 import pymc_extras as pmx
 from pymc_extras.marginal import conditional, recover, unmarginalize
 
-# original contains comp ~ Categorical(w) and its observed dependent likelihood.
+with pm.Model() as original:
+    w = pm.Dirichlet("w", a=[1.0, 1.0])
+    comp = pm.Categorical("comp", p=w, shape=3)
+    pm.Normal("response", mu=pm.math.switch(comp, 1.0, -1.0),
+              sigma=0.5, observed=[-0.8, 0.9, 1.2])
+
 marginal_model = pmx.marginalize(original, ["comp"])
 idata = pm.sample(model=marginal_model, nuts_sampler="pymc",
-                  tune=tune, draws=draws, chains=chains, random_seed=42)
-idata.to_netcdf("posterior.nc")
+                  tune=500, draws=500, chains=2, cores=1, random_seed=42)
+idata.to_netcdf("mixture-posterior.nc")
 allocations = recover(idata, model=marginal_model, var_names=["comp"],
                       extend_inferencedata=False, random_seed=43)
 conditional_model = conditional(marginal_model, ["comp"])
@@ -80,29 +106,171 @@ log_conditional = conditional_model.compile_logp(
 restored = unmarginalize(marginal_model, ["comp"])
 ```
 
-For a nonempty selection, marginalize returns a new model. `recover` defaults to
-extending/returning the supplied DataTree; with `extend_inferencedata=False` it
-returns an xarray Dataset. Empty selections can return their input unchanged.
-`conditional` creates a refactorized joint model: select comp's factor for its
-conditional probabilities, not the full joint logp. Multiple recoveries follow
-a chain rule, not arbitrary independent full conditionals. `unmarginalize`
-restores the original prior, not the conditional. Use `recover`, not deprecated
-`recover_marginals`; `return_samples=False` is not a probability-array API.
+The finite calculation is exact up to numerical arithmetic; the retained-variable
+posterior still needs reliable sampling. The illustrative budgets here and below
+are not convergence guarantees. `recover` draws eliminated variables from their
+conditional posterior; it does not return probability arrays. It defaults to
+extending/returning the supplied DataTree's `posterior`; with
+`extend_inferencedata=False` it returns an xarray Dataset. Use `recover`, not the
+deprecated `recover_marginals`. Empty selections can return their input unchanged.
 
-Enumerable rewrites in 0.14 recognize Bernoulli, Categorical and DiscreteUniform,
-with constant-foldable support sizes/bounds. A separate supported Markov-chain
-rewrite is not a guarantee for arbitrary HMM graphs.
+`conditional` creates a refactorized joint model: select the recovered variable's
+factor for conditional log probabilities, not the full joint logp. Multiple
+recoveries follow a chain rule, not arbitrary independent full conditionals.
+`unmarginalize` restores the original prior and generative graph, **not** the
+conditional posterior; missing latent draws in that restored model will be
+forward-sampled from the prior unless supplied/recovered.
+
+Restrictions remain important:
 
 - Marginalized variables must be free, not observations relabelled as latent.
-- Registered dependent Deterministics/Potentials can be rejected; an unrecorded
+- Registered dependent Deterministics/Potentials are rejected; an unrecorded
   expression such as `mu[comp]` is a different graph contract.
-- Batched observationwise dependencies must remain supported. Cross-observation
-  mixing is not generic; scalar splitting can create exponential graph growth.
+- Batched dependencies must use the supported elementwise/observationwise
+  structure. Cross-observation mixing is not generic; splitting vector latents
+  into scalars can create exponential graph growth.
 - Infinite-support Poisson latents are not finite enumeration. Do not silently
-  truncate or substitute a different model.
-- Normal-Normal conjugate and Laplace-approximate elimination are distinct from
-  arbitrary exact continuous marginalization.
-- Inspect warnings about dependent transform bounds; do not suppress them.
+  truncate or substitute a different model. A finite symbolic domain can still
+  be too expensive to enumerate.
+- Inspect warnings about dependent transform bounds and nonseparable likelihoods;
+  do not suppress them or treat zero bookkeeping factors as observationwise logp.
+
+### Exact Normal–Normal elimination
+
+For `x_i ~ Normal(mu_i, s_i)` and `y_i ~ Normal(a_i+b_i*x_i, t_i)`,
+the supported elementwise marginal is
+`y_i ~ Normal(a_i+b_i*mu_i, sqrt(t_i**2+(b_i*s_i)**2))`.
+Recovery uses the analytic Normal conditional, retaining posterior dependence
+on the remaining parameters.
+
+```python
+import numpy as np
+import pymc as pm
+import pymc_extras as pmx
+from pymc_extras.marginal import conditional, recover
+
+y_obs = np.array([0.5, 1.2, 2.0])
+with pm.Model() as normal_model:
+    mu = pm.Normal("mu", 0.0, 2.0)
+    x = pm.Normal("x", mu=mu, sigma=1.0, shape=3)
+    pm.Normal("y", mu=1.0 + 2.0 * x, sigma=0.5,
+              observed=y_obs)
+
+normal_marginal = pmx.marginalize(normal_model, ["x"])
+# Check only y's marginal factor at mu=1 (exclude the prior on mu).
+expected = -0.5 * (((y_obs - 3.0) ** 2) / 4.25
+                   + np.log(2 * np.pi * 4.25))
+np.testing.assert_allclose(
+    normal_marginal.compile_logp(vars=[normal_marginal["y"]])({"mu": 1.0}),
+    expected.sum(),
+)
+# Check the exact conditional factor at x=0, mu=1.
+normal_conditional = conditional(normal_marginal, ["x"])
+post_mean = (1.0 + 8.0 * (y_obs - 1.0)) / 17.0
+expected_cond = -0.5 * (post_mean**2 * 17.0 + np.log(2 * np.pi / 17.0))
+np.testing.assert_allclose(
+    normal_conditional.compile_logp(vars=[normal_conditional["x"]])(
+        {"mu": 1.0, "x": np.zeros(3)}
+    ),
+    expected_cond.sum(),
+)
+normal_idata = pm.sample(model=normal_marginal, tune=500, draws=500,
+                         chains=2, cores=1, random_seed=44)
+joint_idata = recover(normal_idata, model=normal_marginal,
+                      var_names=["x"], random_seed=45)
+# Replicate responses for the SAME fitted latent units, using recovered x.
+replicated = pm.sample_posterior_predictive(
+    joint_idata, model=normal_model, var_names=["y"],
+    sample_vars=["y"], freeze_vars=["mu", "x"], random_seed=46,
+)
+joint_idata.to_netcdf("normal-joint-posterior.nc")
+```
+
+Here each observation has its own latent `x_i`; sharing the hyperparameter `mu`
+is allowed. The rewrite requires **exactly one dependent Normal RV node**, an
+affine supported Add/Mul mean, and a scale independent of the eliminated variable.
+It rejects broadcasting one scalar/size-one latent across many dependent draws:
+those observations share a latent and their true marginal is correlated, not a
+product of the elementwise Normals above. General matrix linear maps, nonlinear
+means/scales and several dependent RV nodes are not this rewrite.
+Check the marginal log density and recovered conditional moments against the
+analytic formula on a small case before relying on a changed graph.
+
+### Laplace elimination is approximate
+
+`laplace_approx` supplies the **Gaussian prior precision** of a vector field,
+not an arbitrary tuning matrix or a posterior covariance. The implementation
+finds the conditional mode and uses `Q - Hessian(log_likelihood)` for curvature.
+Supply the actual positive-definite precision (including parameter dependence)
+and a compatible finite vector shape; this is not a general API for bounded,
+non-Gaussian or arbitrary tensor latents. The rewrite does not validate that
+your supplied `Q` matches the prior, so a wrong `Q` changes the calculation.
+
+```python
+import numpy as np
+import pymc as pm
+import pymc_extras as pmx
+
+Q = np.eye(2)
+with pm.Model() as field_model:
+    theta = pm.Normal("theta", 0.0, 1.0)
+    field = pm.MvNormal("field", mu=theta * np.ones(2), tau=Q)
+    pm.Poisson("counts", mu=pm.math.exp(field), observed=np.array([1, 3]))
+
+field_marginal = pmx.marginalize(
+    field_model, laplace_approx={"field": Q},
+    minimizer_kwargs={"method": "L-BFGS-B",
+                      "optimizer_kwargs": {"tol": 1e-8}},
+)
+logp_at_zero = field_marginal.compile_logp()({"theta": 0.0})
+field_idata = pm.sample(model=field_marginal, tune=500, draws=500,
+                        chains=2, cores=1, random_seed=47)
+```
+
+This removes `field` from the sampled variables but approximates the target for
+`theta`. More NUTS draws cannot remove integration error. The inner optimization
+and dense Hessian run during marginal likelihood evaluation; initialization is
+currently a deterministic all-ones vector. Check inner-solver sensitivity,
+conditional skewness/multiple modes, precision/curvature and comparisons with
+the original joint model or numerical integration. The experimental INLA helper
+wraps this operation and `pm.sample`; see [INLA selection](approximate-inference.md#inla-select-a-latent-gaussian-structure-not-an-arbitrary-model).
+
+**Recovery limit:** 0.15.1 has no conditional/recovery implementation for
+Laplace-eliminated variables. `recover(..., var_names=["field"])` and
+`conditional(..., ["field"])` raise `NotImplementedError`; INLA's
+`return_latent_posteriors=True` also raises. `unmarginalize` can restore the
+generative model but cannot manufacture posterior field draws. If those are
+required, fit the original joint model (or implement and validate a separate
+conditional inference calculation), rather than call prior draws recovered
+posteriors.
+
+### Likelihood and prediction after elimination
+
+- Call `pm.compute_log_likelihood(idata, model=marginal_model)` explicitly when
+  using its likelihood. Confirm the returned factors represent the intended
+  prediction/validation units, not just the old observed-variable names.
+- Exact independent allocation/Normal elimination can give observationwise
+  marginal likelihoods. Shared eliminated latents induce joint factors:
+  enumeration can assign a nonseparable joint term to one dependent variable
+  and zeros to others; Laplace currently returns a summed joint term, not
+  elementwise observation logp. Do not feed those bookkeeping entries to ordinary
+  observationwise LOO. Choose a valid group/held-out unit and derive the needed
+  factorization or refit.
+- Conditional likelihood on recovered training latents and marginal likelihood
+  integrating fresh latents answer different predictive questions. State whether
+  prediction concerns the same fitted units or new units/groups. For same-unit
+  response replication, recover exact latents and use the original model as
+  above. For new units, build the corresponding prediction model and intentionally
+  draw new latents conditional on retained posterior hyperparameters.
+- The marginal model retains a generative graph that can draw eliminated latents
+  from their prior conditional on retained parameters during forward prediction.
+  That is appropriate for fresh exchangeable units, not automatic posterior
+  recovery of a fitted field. In particular, a Laplace marginal posterior plus
+  prior field draws is not a same-field PPC.
+- Compare prior simulation, log densities, likelihood grouping and predictions
+  with the intended original model on a tractable case. Elimination changes
+  computation; it does not repair label switching, nonidentification or model
+  misspecification.
 
 ## Zero inflation and hurdles
 
@@ -123,5 +291,10 @@ parameters; an observed hurdle likelihood for continuous parameters is different
 
 Sources: [PyMC mixture implementation](https://github.com/pymc-devs/pymc/blob/v6.3.1/pymc/distributions/mixture.py),
 [extras marginalization](https://www.pymc.io/projects/extras/en/stable/api/marginalization.html),
-[extras source](https://github.com/pymc-devs/pymc-extras/tree/v0.14.0/pymc_extras/model/marginal),
-[extras dependency metadata](https://github.com/pymc-devs/pymc-extras/blob/v0.14.0/pyproject.toml).
+[release marginalization source](https://github.com/pymc-devs/pymc-extras/tree/v0.15.1/pymc_extras/model/marginal),
+[exact Normal rewrite](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/model/marginal/distributions/normal.py),
+[Laplace rewrite](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/model/marginal/distributions/laplace.py),
+[conditional recovery](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/model/marginal/conditional.py),
+[release conjugacy tests](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/tests/model/marginal/test_normal.py),
+[PyMC prediction source](https://github.com/pymc-devs/pymc/blob/v6.3.1/pymc/sampling/forward.py),
+[extras dependency metadata](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pyproject.toml).

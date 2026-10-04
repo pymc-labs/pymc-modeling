@@ -6,8 +6,9 @@ means do not remove heteroscedasticity, measurement or extrapolation assumptions
 
 The API cautions here refer to pymc-bart 0.13.1/bartrs 0.4.0. Inspect the installed
 release before assuming they persist. That BART release requires PyMC >=6.3,<7,
-Python >=3.12 and bartrs >=0.4; extras 0.14's older core requirements conflict.
-Use compatible project dependencies instead of overriding bounds.
+Python >=3.12 and bartrs >=0.4. Extras 0.15.1 supports the overlapping PyMC 6.3
+range; check the full dependency solution when combining extensions rather than
+overriding bounds. See [extras compatibility](pymc-extras.md).
 
 ## Outcome-dependent regularization and prior prediction
 
