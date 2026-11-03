@@ -1,10 +1,12 @@
 {
   "name": "pymc-modeling",
+  "version": "6.4.0",
   "owner": { "name": "PyMC Labs" },
   "metadata": { "description": "Agent skills for PyMC, PyTensor, prior elicitation, ArviZ and MLflow tracking." },
   "plugins": [
     {
       "name": "pymc-modeling",
+      "version": "6.4.0",
       "description": "Bayesian modeling, prior elicitation, ArviZ diagnostics, PyTensor workflows and MLflow tracking.",
       "source": "./",
       "strict": false,
