@@ -134,7 +134,7 @@ Use prior/PPC sensitivity to assess these mechanisms, not a family name as proof
 | ZeroSumNormal | Proper on a lower-dimensional subspace, singular in ambient space. For one K-axis, marginal variance is sigma²(1-1/K), not sigma². |
 | Wishart | SPD event; integer nu>p-1, one of V/scale_chol. PyMC 6.3.1 supplies a CholeskyCovTransform; assess prior and geometry rather than declare it categorically unusable. WishartBartlett is deprecated. |
 | LKJCholeskyCov | Positive unnamed SD distribution, eta>0; returns chol,corr,stds with compute_corr. Covariance is chol@chol.T. |
-| LKJCorr | PyMC 6.3.1 returns a lower correlation Cholesky factor despite conflicting prose; construct R=L@L.T. |
+| LKJCorr | Returns a lower correlation Cholesky factor `L`. See [LKJ corrections](#lkj-corrections-in-pymc-640) for matrix construction and release cautions. |
 | CAR | Precision tau*(D-alpha*W). Check symmetric adjacency, positive degrees, graph components, node alignment and positive definiteness. |
 | ICAR | Singular intrinsic-Laplacian difference penalty plus soft sum constraint; disconnected components require explicit identification/propriety treatment. |
 
@@ -142,12 +142,41 @@ Version-specific cautions from [PyMC 6.3.1 multivariate source](https://github.c
 CAR omits a fixed-graph normalizing constant relative to a full Gaussian; restore
 it when absolute scores or graph comparisons require normalization. ICAR's soft
 sum penalty does not supply a general scale-dependent normalizer, and prior RNG
-is unimplemented. Formulate a normalized constrained Gaussian when inferring
-scale or computing marginal likelihoods requires one. LKJ normalizing-constant
-sign/representation deserves an independent check before absolute-density uses
-or inference on eta: for n=2, `(rho+1)/2 ~ Beta(eta,eta)` is a simple oracle.
-Factor support and transform roundtrips alone cannot check density normalization.
-Check the installed release before treating any of these as a current limitation.
+is unimplemented. Use a normalized constrained Gaussian if inference on scale or marginal likelihoods needs normalization.
+
+## LKJ corrections in PyMC 6.4.0
+
+`LKJCorr` returns a lower correlation Cholesky factor `L`. Construct `R=L@L.T` for the correlation matrix.
+Do not pass `L` as `cov` to `MvNormal`. Use `chol=L` when marginal standard deviations equal one.
+
+[PR8497](https://github.com/pymc-devs/pymc/pull/8497) fixes the wrong Beta parameter in forward draws from `LKJCorr` and `LKJCholeskyCov` for `n>=3`.
+It also adds the missing Cholesky-to-correlation Jacobian to `LKJCorr.logp`.
+That missing term changes the inferred law for `n>=3`, even with fixed `eta`.
+It is not only a normalization error.
+
+Tagged sources show both regressions in releases 6.0.0 through 6.3.2, inclusive.
+The checked tags are 6.0.0, 6.0.1, 6.1.0, 6.2.0, 6.3.0, 6.3.1 and 6.3.2.
+The earlier 5.28.5 implementation decrements Beta before each draw and returns correlation entries, not a Cholesky factor.
+
+Release 6.4.0 fixes both regressions.
+The [rewrite commit](https://github.com/pymc-devs/pymc/commit/2c23c7945214cf65cb882d3b21dbc41350e0d8e3) and release comparisons support these boundaries:
+[5.28.5 to 6.0.0](https://github.com/pymc-devs/pymc/compare/v5.28.5...v6.0.0) and [6.3.2 to 6.4.0](https://github.com/pymc-devs/pymc/compare/v6.3.2...v6.4.0).
+
+Earlier `LKJCorr` fits can change posterior estimates and predictions.
+Earlier forward draws can change simulations and predictive results that redraw affected LKJ variables.
+Upgrade to 6.4.0 or later and refit affected `LKJCorr` models.
+Regenerate affected forward simulations and predictions.
+
+The fixed-eta `LKJCholeskyCov` log-density shape did not share the missing-Jacobian error.
+Do not infer that every earlier covariance fit used that wrong law.
+
+PR8497 also fixes the normalizer sign and an even-dimensional `eta=1` formula.
+The wrong normalizer is also present in checked tag 5.28.5. These checks do not establish its first affected release.
+Normalization matters for absolute densities and inference on `eta` where supported.
+
+For `n=2`, `(rho+1)/2 ~ Beta(eta,eta)` is a simple oracle.
+At `eta=1`, log density equals `-log(2)`.
+This oracle checks normalization but cannot detect the `n>=3` regressions.
 
 ## Transforms and Jacobians
 

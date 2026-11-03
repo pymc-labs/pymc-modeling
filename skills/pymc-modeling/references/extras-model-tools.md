@@ -1,8 +1,10 @@
 # Extras model tools preserve explicit modeling choices
 
-Use these tools when configuration, reuse or deployment requires them. A plain
-`with pm.Model()` block is usually simpler for one model. APIs below target extras
-0.15.1; start with [compatibility and feature selection](pymc-extras.md).
+Use these tools when configuration, reuse or deployment needs them.
+A plain `with pm.Model()` block is usually simpler for one model.
+
+Use the [canonical compatibility guide](pymc-extras.md#resolve-compatibility-before-choosing-an-api) for the checked environment and dependency bounds.
+Older version cautions retain their stated scope.
 
 ## Prior factories separate configuration from model creation
 
@@ -49,8 +51,13 @@ with pm.Model(coords={"group": ["a", "b", "c"]}) as hierarchical:
   compiled graph, fitted optimizer or all custom transform implementations.
   Re-register custom transforms/deserializers in the loading process. Do not
   assume arbitrary symbolic expressions can be serialized.
-  In 0.15.1 `to_dict`/`from_dict` omit `core_dims`; store and restore that
-  metadata separately for experimental multivariate `pymc.dims` factories.
+
+<!-- ste-disable-next-line dictionary/not-approved-word -->
+- In the [0.16.0 `Prior` source](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/prior.py), `to_dict`/`from_dict` preserve nonempty `core_dims`, including nested priors.
+  Serialization omits empty `core_dims`.
+  Older dictionaries without that field restore no core dimensions.
+  [PR 789](https://github.com/pymc-devs/pymc-extras/pull/789) fixes the omission in 0.15.1.
+  Separate metadata storage is not needed for this field.
 
 `Censored(Prior(...), lower=..., upper=...)` represents clipping with boundary
 point masses; it is not truncation or a model for values absent through selection.
@@ -263,9 +270,18 @@ transformed quantities and predictions on a small case too.
 
 ## Primary sources
 
+<!-- ste-disable-next-line dictionary/not-approved-word -->
+- [`Prior`/factory source, 0.16.0](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/prior.py).
+- [Model factory source, 0.16.0](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/model/model_api.py).
+- [ModelBuilder source, 0.16.0](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/model_builder.py).
+- [VIP source, 0.16.0](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/model/transforms/autoreparam.py).
+<!-- ste-disable-next-line dictionary/not-approved-word -->
+- [Posterior transfer source, 0.16.0](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/utils/prior.py).
+- [Model equivalence source, 0.16.0](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/utils/model_equivalence.py).
+
+For the explicitly scoped 0.15.1 cautions:
+
 - [Prior/factory source, 0.15.1](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/prior.py).
 - [Model factory source, 0.15.1](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/model/model_api.py).
 - [ModelBuilder source, 0.15.1](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/model_builder.py).
 - [VIP source, 0.15.1](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/model/transforms/autoreparam.py).
-- [Posterior-prior source, 0.15.1](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/utils/prior.py).
-- [Model equivalence source, 0.15.1](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/utils/model_equivalence.py).

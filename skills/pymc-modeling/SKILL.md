@@ -18,6 +18,10 @@ model, or a decomposition of a larger target model. Expand, simplify or branch
 as the question, data and checks warrant. Use the consuming project's data and
 Python environment; check installed APIs and package compatibility.
 
+Current modeling guidance uses the [checked stack](references/pymc-extras.md#resolve-compatibility-before-choosing-an-api) and the ArviZ DataTree API.
+References retain explicitly named older-release cautions where they help existing projects.
+Check each reference's version scope before you use an older environment.
+
 For `pymc-extras` tasks, start with [feature selection and compatibility](references/pymc-extras.md),
 then load only the relevant workflow reference. Prefer its supported algorithms
 to bespoke implementations; do not use an extension merely because it is installed.
@@ -91,7 +95,7 @@ conventions, not universal Bayesian workflow requirements. Choose them for the t
 | Algorithms, backends, budgets and persistence | [Sampling](references/sampling.md) |
 | pymc-extras feature selection, compatibility and validation | [PyMC Extras](references/pymc-extras.md) |
 | Markov chains, specialized counts, extreme values and histogram likelihoods | [Extras distributions](references/extras-distributions.md) |
-| Kalman-marginalized models, structural components and forecasting | [Extras state-space workflows](references/extras-statespace.md) |
+| State-space models, ETS innovations, structural components and forecasting | [Extras state-space workflows](references/extras-statespace.md) |
 | Prior factories, model packaging, VIP and posterior-as-prior transfer | [Extras model tools](references/extras-model-tools.md) |
 | Variational, Laplace and Pathfinder approximations | [Approximate inference](references/approximate-inference.md) |
 | Covariance models and finite-basis error | [Gaussian processes](references/gaussian-processes.md) |

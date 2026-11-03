@@ -9,10 +9,15 @@ Installing extras does not justify changing a scientifically appropriate model.
 
 ## Resolve compatibility before choosing an API
 
-This guidance targets **pymc-extras 0.15.1**. Its published requirements include:
-Python >=3.12, PyMC >=6.3,<6.4, PyTensor >=3.3,<3.4, ArviZ >=1.2,<2 and
-PreliZ >=0.27,<0.29. These are release-specific constraints, not permanent bounds.
-Let the consuming project's package manager resolve them; never bypass dependency
+This guidance targets PyMC 6.4.0, pymc-extras 0.16.0, PyTensor 3.3.7 and ArviZ 1.3.0 with the DataTree API.
+PyMC and extras both need PyTensor `>=3.3.6,<3.4`.
+Extras needs Python >=3.12, PyMC `>=6.4.0,<6.5`, ArviZ `>=1.2,<2`, and PreliZ `>=0.27,<0.29`.
+
+These bounds define compatible versions, not the checked stack.
+The manifest keeps the upstream PyTensor floor of 3.3.6.
+Both solve groups in `pixi.lock` resolve to 3.3.7, including the default and JAX environments.
+
+Let the consuming project's package manager resolve dependencies. Never bypass dependency
 pins. Do not install into or replace a working environment merely to load a skill.
 For an older project, inspect that release's signatures and source instead.
 
@@ -42,7 +47,8 @@ and installed `help()` before relying on defaults or optional backend support.
 | Remove conjugate continuous variables | Exact supported conjugacy; check the actual dependent graph, not just the prior's family | [Mixtures and marginalization](mixtures.md) |
 | Integrate a nonconjugate latent block approximately | Laplace marginalization; the remaining posterior is approximate too | [Mixtures and marginalization](mixtures.md) |
 | Optimize, initialize or approximate a posterior | Extras MAP, Laplace, Pathfinder, DADVI or specialized INLA; select by geometry and required uncertainty accuracy | [Approximate inference](approximate-inference.md) |
-| Linear-Gaussian temporal latent process | Kalman-marginalized state-space models, including structural components | [Extras state-space workflows](extras-statespace.md) |
+| Experimental continuous inference with MLX | Unadjusted MCLMC retains discretization bias. Check float32 graphs and approximation sensitivity. | [MLX MCLMC](#experimental-mlx-mclmc) |
+| Linear-Gaussian temporal latent process | State-space models and structural components, with a separate ETS innovations recursion | [Extras state-space workflows](extras-statespace.md) |
 | Latent discrete sequence or joint finite state | `DiscreteMarkovChain` / `JointCategorical`; respect event axes and state ordering | [Extras distributions](extras-distributions.md) |
 | Counts, differences, block maxima or threshold exceedances | Specialized distributions with a matching observation process | [Extras distributions](extras-distributions.md) |
 | Compress a large independent likelihood | `histogram_approximation`; binning changes the likelihood and requires an approximation check | [Extras distributions](extras-distributions.md) |
@@ -63,10 +69,9 @@ and installed `help()` before relying on defaults or optional backend support.
 3. State which operation is exact, which is approximate and which outputs are
    conditioned on observations. Approximation draws and optimization paths are
    not converged MCMC chains. A MAP estimate supplies no posterior uncertainty.
-4. For supported exact elimination, recover marginalized quantities before
-   interpreting their posterior or using them in generative prediction. In 0.15.1
-   Laplace-eliminated variables have no recovery handler; use a full-model fit when
-   their uncertainty is required. Recovery never makes an approximation exact.
+4. For supported elimination, recover marginalized quantities before you interpret their posterior or generate same-unit predictions.
+   Extras 0.16.0 also supports Laplace conditional recovery with a Gaussian approximation at the conditional mode.
+   Recovery does not make an approximation exact.
 5. Save parameter inference separately from downstream simulations. Specify
    training identities, forecast origins, future covariates and random seeds.
    Do not tune priors, approximation checks or seeds to obtain favorable results.
@@ -77,9 +82,27 @@ Dask. The package's `complete` extra is not a promise of every inference backend
 or accelerator. Install only the dependencies of the chosen operation and inspect
 backend restrictions before compiling the model.
 
+## Experimental MLX MCLMC
+
+Import `fit_mlx_mclmc` from `pymc_extras.inference.mlx_mclmc`, not the `pmx.fit` dispatcher.
+The sampler targets float32 continuous models.
+Its unadjusted dynamics retain discretization bias.
+
+The upstream `mlx_mclmc` extra installs MLX only on macOS arm64.
+The sampler source checks model dtype and discrete variables, not the operating system.
+Its momentum kernel uses Metal when available and MLX operations otherwise.
+
+Do not confuse that installation marker with a runtime platform check.
+The repository's Linux `mlx[cpu]` environment checks custom Ops, not this sampler.
+Check approximation sensitivity and posterior agreement with an independent reference before scientific use.
+
+Sources: [sampler interface](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/inference/mlx_mclmc/mlx_mclmc.py),
+[model checks](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/inference/mlx_mclmc/logp.py),
+and [CPU/Metal momentum selection](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/inference/mlx_mclmc/kernel.py).
+
 ## Primary sources
 
 - [Official API inventory](https://www.pymc.io/projects/extras/en/stable/api_reference.html).
-- [0.15.1 dependency metadata](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pyproject.toml).
-- [0.15.1 package exports](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/__init__.py).
-- [Published release metadata](https://pypi.org/project/pymc-extras/0.15.1/).
+- [0.16.0 dependency metadata](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pyproject.toml).
+- [0.16.0 package exports](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/__init__.py).
+- [Published release metadata](https://pypi.org/project/pymc-extras/0.16.0/).

@@ -6,9 +6,11 @@ Use this workflow to express a model's **deterministic computation**. Write the
 observation unit, predictor units, group-code mapping, time ordering, and intended
 output axes before building a graph.
 
-API cautions below refer to PyTensor 3.3.0 and PyMC 6.3.1; check the linked
-official source against the installed version. `pymc.dims` and
-`pytensor.xtensor` are experimental in those versions.
+Most API cautions below refer to PyTensor 3.3.0 and PyMC 6.3.1.
+The conditional guidance targets PyTensor 3.3.7.
+
+Check the linked source against the installed version.
+`pymc.dims` and `pytensor.xtensor` remain experimental.
 
 ## Choose the representation
 
@@ -19,7 +21,7 @@ official source against the installed version. `pymc.dims` and
 | Same computation for independent scenarios/observations | Broadcasting, batched contractions, or `pt.vectorize` | Distinguish batch axes from core axes |
 | State depends on previous state | `pytensor.scan` | Step order, initial-state shape/dtype, sequence alignment |
 | Elementwise masking | `pt.where` / `pt.switch` | Both branch expressions are valid over their evaluation domains |
-| Scalar choice of a whole expression, including expensive/invalid unselected branch | `pytensor.ifelse` with a lazy VM/CVM linker | Branch count, rank and dtype agree; verify actual laziness |
+| Scalar choice of a whole expression, including an expensive or invalid unselected branch | `pytensor.conditional.ifelse` with lazy VM/CVM, or PyTensor >=3.3.5 `NUMBA`/`JAX` modes | Branch count, rank and dtype agree. Check actual laziness. |
 | Ragged blocks with one element type/rank | `pytensor.typed_list.TypedListType` | Homogeneous element type; ragged lengths do not mean mixed dtypes/ranks |
 
 Prefer direct array operations over a Python loop that builds thousands of graph
@@ -325,11 +327,19 @@ state and its gradient against ordinary Scan before claiming memory savings.
 
 `where`/`switch` select elementwise and can evaluate both expressions. A mask
 around an invalid indexed expression or division is not lazy protection.
-`ifelse` has a scalar condition and matching branch outputs; its laziness
-requires a suitable VM/CVM linker. For example, with
-`Mode(linker="vm", optimizer="fast_compile")`, an invalid index in an
-unselected branch should remain unevaluated and should raise when selected.
-Check this on the intended linker rather than silently falling back.
+Import the helper with `from pytensor.conditional import ifelse`.
+PyTensor 3.3.5 deprecates imports from `pytensor.ifelse`.
+The helper needs a scalar condition and matching branch counts, ranks, and dtypes.
+
+VM/CVM can evaluate only the selected branch.
+From PyTensor 3.3.5, the `NUMBA` and `JAX` modes also support lazy branches through conditional graph rewrites.
+A linker alone does not select those rewrites.
+
+The ordinary Python linker can still evaluate both branches.
+Check the actual mode with an invalid unselected branch and a valid selected branch.
+Then select the invalid branch and check its error.
+
+JAX indexing does not necessarily raise for invalid indices, so use a suitable domain check for that backend.
 
 ## Named dimensions and homogeneous lists
 
@@ -435,7 +445,8 @@ The pinned links below describe version-specific behavior, not future guarantees
   [indexing/update source](https://github.com/pymc-devs/pytensor/blob/aa1bc7772eb11ed8def2814374aeb5da03da590c/pytensor/tensor/subtensor.py).
 - [Scan guide](https://pytensor.readthedocs.io/en/latest/library/scan.html),
   [checkpoint restrictions](https://github.com/pymc-devs/pytensor/blob/aa1bc7772eb11ed8def2814374aeb5da03da590c/pytensor/scan/checkpoints.py),
-  [IfElse linker contract](https://github.com/pymc-devs/pytensor/blob/aa1bc7772eb11ed8def2814374aeb5da03da590c/pytensor/ifelse.py).
+  [conditional Op source](https://github.com/pymc-devs/pytensor/blob/rel-3.3.7/pytensor/conditional/op.py),
+  [lazy branch rewrites](https://github.com/pymc-devs/pytensor/blob/rel-3.3.7/pytensor/conditional/rewriting.py).
 - [PyMC dims guide](https://www.pymc.io/projects/docs/en/stable/learn/core_notebooks/dims_module.html),
   [XTensor type/selection source](https://github.com/pymc-devs/pytensor/blob/aa1bc7772eb11ed8def2814374aeb5da03da590c/pytensor/xtensor/type.py),
   [shape utilities](https://github.com/pymc-devs/pymc/blob/da8fc472989122c0441e03789fba9f36ffcd9a98/pymc/distributions/shape_utils.py).

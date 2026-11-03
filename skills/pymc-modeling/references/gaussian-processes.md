@@ -97,9 +97,24 @@ c scales training half-range. Supply exactly one of L/c and one m/L per active
 dimension. Do not recenter on prediction inputs. Finite output at/outside the
 boundary is not valid extrapolation.
 
+In PyMC 6.4.0, `boundary` selects the HSGP eigenbasis edge conditions.
+The conditions apply to the GP residual around its mean function, not to the mean function itself.
+
+- `"dirichlet"`, the default, fixes that residual to zero at both edges.
+- `"neumann"` fixes its normal derivative to zero and includes a constant mode.
+- The mixed choices are `"dirichlet-neumann"` and `"neumann-dirichlet"`.
+  Their names give the conditions at the negative and positive edges, respectively.
+
+A single string applies to every active dimension. A sequence assigns one condition per active dimension.
+Choose these edge assumptions from the scientific model, not only from numerical convenience.
+Padding can reduce unwanted edge effects inside the domain. A different boundary condition does not remove finite-basis error.
+
 ```python
 with model:
-    gp = pm.gp.HSGP(m=basis_counts, L=domain_halfwidths, cov_func=covariance)
+    gp = pm.gp.HSGP(
+        m=basis_counts, L=domain_halfwidths, cov_func=covariance,
+        boundary="dirichlet",
+    )
     f = gp.prior("f", X=X)
     # Attach the project's observation likelihood before fitting.
     f_new = gp.conditional("f_new", Xnew=Xnew)
@@ -145,5 +160,5 @@ unimplemented inherited `predict`/`marginal_likelihood` methods.
 Sources: [GP API](https://www.pymc.io/projects/docs/en/stable/api/gp.html),
 [GP implementation](https://github.com/pymc-devs/pymc/blob/v6.3.1/pymc/gp/gp.py),
 [covariances](https://github.com/pymc-devs/pymc/blob/v6.3.1/pymc/gp/cov.py),
-[HSGP](https://github.com/pymc-devs/pymc/blob/v6.3.1/pymc/gp/hsgp_approx.py),
+[HSGP in 6.4.0](https://github.com/pymc-devs/pymc/blob/v6.4.0/pymc/gp/hsgp_approx.py),
 [HSGP methodology](https://arxiv.org/abs/2004.11408).

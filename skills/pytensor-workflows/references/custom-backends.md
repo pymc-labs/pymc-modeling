@@ -109,7 +109,9 @@ describes CPU-only Linux packages; check its current platform requirements.
 
 `MLXLinker(use_compile=True)` uses `mx.compile`; `False` still typifies and
 executes the graph. Disabling compilation does not supply missing lowerings.
-The module uses the installed public `mlx_funcify(GammaLn())` approximation and
+The module uses the installed `mlx_funcify` GammaLn approximation.
+PyTensor 3.3.7 needs a scalar Apply node with explicit float64 output for this dispatch.
+It uses
 [`custom_function.vjp`](https://ml-explore.github.io/mlx/build/html/python/_autosummary/mlx.core.custom_function.html)
 for the eta score. Check forward values, compiled first gradients and
 reverse-over-reverse Hessian-vector products separately; no native JVP is supplied.
