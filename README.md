@@ -104,6 +104,18 @@ state-space forecasting, prior factories and model-building tools. Its examples
 distinguish supported recovery from approximation error.
 Inspect installed APIs when adapting them to another release.
 
+## Release versions
+
+Release tags use `vMAJOR.MINOR.PATCH`.
+`MAJOR.MINOR` identifies the primary target PyMC series.
+`PATCH` tracks revisions to this plugin, not the PyMC patch release.
+
+For example, `v6.4.1` can revise the skills for the PyMC 6.4 series.
+The [compatibility guide](skills/pymc-modeling/references/pymc-extras.md#resolve-compatibility-before-choosing-an-api) records exact checked versions and dependency bounds.
+Individual references retain their stated compatibility limits.
+
+The marketplace and plugin versions match the release tag without its `v` prefix.
+
 ## Maintainer checks
 
 These checks exercise the educational custom Op and its CPU backends, not the
