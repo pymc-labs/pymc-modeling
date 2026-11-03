@@ -1,35 +1,60 @@
 # Bayesian state-space models with pymc-extras
 
-This reference targets **pymc-extras 0.15.1** and PyMC 6/DataTree. Use its declared
-requirements: Python >=3.12, PyMC >=6.3,<6.4, PyTensor >=3.3,<3.4,
-ArviZ >=1.2,<2 and PreliZ >=0.27,<0.29. The official stable documentation can
-change independently; the release sources linked below define the APIs here.
-The examples are small runnable workflows, not evidence that all model families
-or numerical options have been exercised.
+Use the [canonical compatibility guide](pymc-extras.md#resolve-compatibility-before-choosing-an-api) for the checked environment and dependency bounds.
+Older version cautions retain their stated scope.
+The official stable documentation can change independently.
+
+The examples are small runnable workflows, not evidence that all model families or numerical options work correctly.
 
 ## Choose the model, not just an available constructor
 
-The common representation is linear Gaussian:
+The equations below describe the common linear Gaussian representation:
 `x[t+1] = c[t] + T[t] @ x[t] + R[t] @ eta[t]`,
 `y[t] = d[t] + Z[t] @ x[t] + epsilon[t]`, with innovation covariance `Q[t]`
-and measurement covariance `H[t]`. The initial state has mean `x0` and covariance
-`P0`. Filtering integrates out the latent state sequence; parameter inference is
-still Bayesian inference over the PyMC priors and likelihood. This is not a
-generic nonlinear or non-Gaussian state-space interface.
+and measurement covariance `H[t]`.
+The initial state has mean `x0` and covariance `P0`.
+
+Kalman filtering integrates the latent state sequence for these models.
+`BayesianETS` also supports a direct innovations likelihood under the conditions below.
+Parameter inference still uses PyMC priors and the selected likelihood.
+
+This is not a generic nonlinear or non-Gaussian interface.
 
 | Scientific structure | Release class | Important choices |
 |---|---|---|
 | One series with lagged dynamics, innovations and optional seasonality/differencing | `BayesianSARIMAX(order=(p,d,q), seasonal_order=(P,D,Q,S))` | Specify stationarity, MA invertibility/identification, initialization, calendar period and exogenous regression. `trend="c"` is a constant in the differenced ARMA equation, hence a drift when differencing. |
 | Several series whose histories jointly predict each other | `BayesianVARMAX(order=(p,q), endog_names=[...])` | Regularize cross-series coefficients and innovation covariance. A VARMA is not automatically identified by choosing p and q. Exogenous inputs enter the transition by default; `exog_in_observation=True` instead gives regression with VARMA errors. These coefficients have different interpretations. |
-| Exponential smoothing with additive Gaussian errors | `BayesianETS(order=("A","N","N"))`, with additive/damped trend and additive seasonality options | This is the additive-error subset, not arbitrary multiplicative ETS. Priors on smoothing coefficients must match `use_transformed_parameterization`; transformed beta/gamma have bounds depending on alpha. Its optional stationary initialization is a damped approximation for a nonstationary model, not proof of stationarity. |
+| Exponential smoothing with additive Gaussian errors | `BayesianETS(order=("A","N","N"), endog_names=["y"])`, with additive/damped trend and additive seasonality options | This is the additive-error subset, not arbitrary multiplicative ETS. With complete data, no measurement error and `stationary_initialization=True`, the likelihood uses an innovations recursion. Other cases use Kalman filtering. Match smoothing priors to `use_transformed_parameterization`. |
 | Many observed series driven by fewer dynamic latent factors | `BayesianDynamicFactor` | Choose factor number/order and idiosyncratic error structure. Standardized factor innovations do not resolve every loading sign/rotation ambiguity; impose scientifically defensible identification before interpreting individual factors. Optional regression coefficients can evolve through `exog_innovations`. |
 | Interpretable level, trend, seasonal, cyclic and regression contributions | `structural` components composed with `+`, then `.build()` | Specify which components vary, their phase and shared versus series-specific states, and distinguish process shocks from measurement noise. |
 
-See [model release exports](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/models/__init__.py),
-[SARIMAX source](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/models/SARIMAX.py),
-[VARMAX source](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/models/VARMAX.py),
-[ETS source](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/models/ETS.py),
-and [DynamicFactor source](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/models/DFM.py).
+See [model release exports](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/statespace/models/__init__.py),
+[SARIMAX source](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/statespace/models/SARIMAX.py),
+[VARMAX source](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/statespace/models/VARMAX.py),
+[`BayesianETS` source, 0.16.0](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/statespace/models/ETS.py),
+and [DynamicFactor source](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/statespace/models/DFM.py).
+
+### ETS initialization in 0.16.0
+
+The constructor defaults to `stationary_initialization=True` and `measurement_error=False`.
+The default fixes `P0=R @ Q @ R.T` and needs no distribution for `P0`.
+This is the single-source-of-error prediction covariance, not a stationary distribution for the level or trend.
+
+Declare distributions for the initial level, trend and seasonal values from `param_info`.
+With `stationary_initialization=False`, declare `P0`.
+The constructor no longer accepts `initialization_dampening`.
+
+The fixed covariance is singular.
+Use the default `mvn_method="svd"` for conditional sampling.
+Do not select `"cholesky"` or `"eigh"` for that singular covariance.
+
+See [ETS innovations change, PR 777](https://github.com/pymc-devs/pymc-extras/pull/777).
+
+The default `use_transformed_parameterization=False` uses `alpha`, `beta` and `gamma` between zero and one.
+In that form, the trend gain is `alpha*beta` and the seasonal gain is `(1-alpha)*gamma`.
+
+With `use_transformed_parameterization=True`, use `0<alpha<1`, `0<beta<alpha` and `0<gamma<1-alpha`.
+Only declare coefficients for the selected trend and seasonality.
 
 ## Register priors and build the likelihood
 
@@ -56,8 +81,8 @@ For stationary SARIMAX initialization, the priors must produce stable dynamics.
 For AR(1), a transformed coefficient in (-1,1) suffices; separately bounding every
 AR(p) coefficient does not. Check roots or the companion matrix's spectral
 radius. Nonstationary initialization does not make an explosive process sensible.
-With `d>0` or `D>0`, 0.15.1 requires `stationary_initialization=False` and the
-`"fast"` representation for internal differencing; register `x0` and `P0`.
+With `d>0` or `D>0`, [0.15.1](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/models/SARIMAX.py) needs `stationary_initialization=False` and the `"fast"` representation for internal differencing.
+Register `x0` and `P0`.
 Manual differencing needs saved ordered level/seasonal history and draw-wise
 inversion. Stable transitions with an arbitrary `P0` are not stationary
 initialization. Initial covariance is in squared outcome/state units, not SD.
@@ -68,8 +93,8 @@ around those means. A prior on the initial mean and nonzero `P0` represent two
 sources of uncertainty. Specify both deliberately rather than using a huge
 covariance as an unexplained numerical convenience.
 
-Sources: [base interface and graph construction](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/core/statespace.py),
-[structural assembly](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/models/structural/core.py),
+Sources: [base interface and graph construction](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/statespace/core/statespace.py),
+[structural assembly](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/statespace/models/structural/core.py),
 [official SARIMAX API](https://www.pymc.io/projects/extras/en/stable/statespace/generated/pymc_extras.statespace.models.BayesianSARIMAX.html).
 
 ## Complete local-level example: fit, simulate and forecast
@@ -167,7 +192,7 @@ forecast_eti = future_y.quantile([0.055, 0.945], dim=("chain", "draw"))
 ```
 
 `future`, `conditional`, `prior_paths` and `replications` are the returned
-predictive **child** DataTrees in 0.15.1. Access their variables directly, as
+predictive **child** DataTrees in 0.16.0. Access their variables directly, as
 above, not `future["posterior_predictive"]["forecast_observed"]`. The fit itself
 is a root DataTree: parameters are in `idata["posterior"]`.
 Unconditional `steps=k` produces `k+1` time positions including the initial
@@ -182,10 +207,10 @@ or Monte Carlo reliability. The ETI is a pointwise 89% equal-tail interval, not
 a simultaneous path band. Observation forecasts include new measurement noise;
 latent state forecasts do not.
 
-Sources: [LevelTrend parameters](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/models/structural/components/level_trend.py),
-[MeasurementError parameters](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/models/structural/components/measurement_error.py),
-[forward sampling and return groups](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/core/forward_sampling.py),
-[forecast indexing and simulation](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/core/forecast.py).
+Sources: [LevelTrend parameters](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/statespace/models/structural/components/level_trend.py),
+[MeasurementError parameters](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/statespace/models/structural/components/measurement_error.py),
+[forward sampling and return groups, 0.16.0](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/statespace/core/forward_sampling.py),
+[forecast indexing and simulation, 0.16.0](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/statespace/core/forecast.py).
 
 ## Construct richer structural models
 
@@ -233,9 +258,9 @@ This avoids mistaking same-width observation variables for state variables. Choo
 filtering or smoothing according to the scientific question before extraction.
 
 Sources: [official structural component documentation](https://www.pymc.io/projects/extras/en/stable/statespace/models/structural.html),
-[release component exports](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/models/structural/__init__.py),
-[seasonality implementation](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/models/structural/components/seasonality.py),
-[regression implementation](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/models/structural/components/regression.py).
+[release component exports](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/statespace/models/structural/__init__.py),
+[seasonality implementation](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/statespace/models/structural/components/seasonality.py),
+[regression implementation](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/statespace/models/structural/components/regression.py).
 
 ## Conditioning: filtering, smoothing, replication and forecasting
 
@@ -250,8 +275,8 @@ Sources: [official structural component documentation](https://www.pymc.io/proje
   `predicted_posterior`, `smoothed_posterior` and corresponding `_observed`
   variables. Observed outputs are noisy replications conditional on the state
   information, not recovered missing measurements known with certainty.
-- In 0.15.1, `joint_smoothed_draws=True` (default) uses a simulation smoother
-  preserving cross-time posterior state covariance. With `False`, smoothed draws
+- In [0.15.1](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/core/forward_sampling.py), `joint_smoothed_draws=True` (default) uses a simulation smoother that preserves cross-time posterior state covariance.
+  With `False`, smoothed draws
   have correct per-time marginal distributions but not joint path dependence.
   Filtered/predicted state draws are likewise per-time marginals, not joint paths.
   Do not use marginal draws to assess path sums or simultaneous excursions.
@@ -266,8 +291,10 @@ Sources: [official structural component documentation](https://www.pymc.io/proje
   the parameter posterior. Holdout forecasts need prefix-only preprocessing,
   priors chosen without holdout outcomes and prefix-only fitting/refitting.
 
-For a numerical oracle, compare a small independently implemented Kalman
-recursion's filtered means and covariances, matching initialization and jitter.
+For a numerical oracle, compare a small independent Kalman recursion for Kalman-based models.
+Match initialization and jitter.
+For the ETS innovations path, compare forecast errors and summed Normal innovation log densities with an independent ETS recursion.
+
 For a zero-mean latent AR(1) with terminal filter `(mT,VT)`, conditional on
 parameters, horizon-h observation mean and variance are
 `phi**h*mT` and
@@ -278,9 +305,12 @@ correct simulation, seasonal phase or forecast alignment.
 
 ## Missing observations and future exogenous scenarios
 
-Keep missing measurements as NaNs at their original clock positions. The Kalman
-likelihood masks them and propagates state uncertainty through gaps rather than
-adding ordinary PyMC imputation variables. Validate unexpected infinities yourself:
+Keep missing measurements as NaNs at their original clock positions.
+Kalman likelihoods mask missing measurements and propagate state uncertainty through gaps.
+ETS with missing data also uses the Kalman path.
+
+These likelihoods do not add ordinary PyMC imputation variables.
+Validate unexpected infinities yourself:
 data preprocessing masks nonfinite values, which must not disguise a corrupt
 measurement as routine missingness. Declare assumptions about informative
 missingness; a missing-data mask does not model the selection process. Use a
@@ -298,15 +328,27 @@ For the structural Regression above, use `data_drivers` and `beta_drivers`
 with their own metadata dimensions. If exogenous data introduce the `time`
 coordinate first, supply the exact same training index later to graph construction.
 
+Custom exogenous models in 0.16.0:
+A `PyMCStateSpace` subclass can declare `Data(..., is_exogenous=True)` through `set_data_info()`.
+The base class now derives its exogenous-data flag from that metadata.
+[PR 794](https://github.com/pymc-devs/pymc-extras/pull/794) fixes the missing flag for such custom subclasses in 0.15.1.
+
+This activates the forecast scenario path.
+It does not establish scenario dates, column order or scientific alignment.
+See the [0.16.0 base implementation](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/statespace/core/statespace.py).
+
 Forecasts of models fitted with exogenous inputs require scenarios for **every**
 required input. With multiple containers, pass a dictionary keyed by
 `ss.data_names`; using that dictionary also makes single-container intent clear:
 `scenario={"exogenous_data": future_drivers}`. Construct `future_drivers` with
 exact forecast dates, training column labels/order and H rows, then pass it to
 `ss.forecast(idata, start=origin, periods=H, filter_output="filtered", scenario=scenario)`.
-Assert dates and column order before the call: 0.15.1's forecast preparation can
-replace a supplied scenario's index with the generated forecast index. This is
-not evidence that its original dates were aligned. `use_scenario_index=True`
+Assert dates and column order before the call.
+Forecast preparation can replace the supplied scenario index with the generated forecast index, including in 0.16.0.
+This does not prove that the original dates matched.
+
+Keep these alignment checks after the exogenous-data flag fix.
+`use_scenario_index=True`
 uses the scenario's regular index instead; it ignores explicit start/end/periods
 and takes the preceding fitted date as the conditioning origin. Verify that date
 and frequency yourself. Greater-than-two-dimensional exogenous inputs are not
@@ -320,8 +362,8 @@ origin; never insert realized future outcomes or holdout-derived regressors.
 Time-varying seasonal/trend/exogenous models need explicit phase and scenario
 checks, particularly when requesting origins before the final fitted date.
 
-Sources: [data preparation and missing masking](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/utils/data_tools.py),
-[scenario validation and forecast construction](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/core/forecast.py).
+Sources: [data preparation and missing masking](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/statespace/utils/data_tools.py),
+[scenario validation and forecast construction, 0.16.0](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/statespace/core/forecast.py).
 
 ## Numerical choices without changing the scientific model
 
@@ -337,8 +379,9 @@ observations; do not select it merely because a series is long.
 when covariances are well-conditioned positive definite but is less forgiving
 of singular state covariances. Degenerate latent components need special care.
 
-Constructor `cov_jitter` is shared by fitting and post-estimation graphs; its
-default is 1e-8 (1e-6 for float32). Record it and check sensitivity, since it adds
+For Kalman filtering, constructor `cov_jitter` affects fitting and post-estimation graphs.
+Its default is 1e-8 (1e-6 for float32).
+Record it and check sensitivity, since it adds
 to covariance diagonals and is not a scientifically specified measurement
 variance. Constructor `missing_fill_value` defaults to -9999.0; change it if this
 is a legitimate measurement, not by modifying the observed data to avoid errors.
@@ -356,6 +399,7 @@ the direct predictive child returned by the trajectory and forecast methods.
 model context, useful for stability or covariance checks. These are inspection
 interfaces, not a substitute for predictive criticism or temporal holdouts.
 
-Sources: [filter factory, jitter, compilation and inspection methods](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/core/statespace.py),
-[filter-output sampling](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/core/forward_sampling.py),
-[simulation implementation](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/filters/distributions.py).
+Sources: [filter factory, jitter, compilation and inspection methods](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/statespace/core/statespace.py),
+[filter-output sampling](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/statespace/core/forward_sampling.py),
+[simulation implementation](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/statespace/filters/distributions.py),
+[older filter-label caution, 0.15.1](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/statespace/core/statespace.py).

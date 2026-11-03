@@ -2,8 +2,11 @@
 
 Use these families when the observation process or prior structure calls for
 something beyond core PyMC—not simply because the distribution is available.
-This reference targets **pymc-extras 0.15.1**. Import families from
-`pymc_extras.distributions`; use `.dist(...)` for unnamed distributions and
+Use the [canonical compatibility guide](pymc-extras.md#resolve-compatibility-before-choosing-an-api) for the checked environment and dependency bounds.
+Older version notes retain their stated scope.
+
+Import families from `pymc_extras.distributions`.
+Use `.dist(...)` for unnamed distributions and
 `Family("y", ..., observed=data)` for likelihoods. Follow the environment contract
 in [pymc-extras](pymc-extras.md). The [official distribution index](https://www.pymc.io/projects/extras/en/stable/api/distributions.html)
 is useful for discovery; the release sources linked below determine exact APIs.
@@ -50,7 +53,7 @@ uses tensor indexing; do not expect every bad code to produce a clean
 logp sums transitions and initial-state density, yielding one logp per batch
 chain—not one independent observation per time point.
 
-[Chain implementation and examples](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/distributions/timeseries.py).
+[Chain implementation and examples](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/distributions/timeseries.py).
 
 ### JointCategorical is not a row-normalized categorical matrix
 
@@ -70,7 +73,7 @@ do not assume generic discrete marginalization or a specialized step method for
 an arbitrary standalone joint RV merely from the export. Its use as a chain's
 joint initial distribution is implemented explicitly.
 
-[Joint implementation](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/distributions/multivariate/joint_categorical.py).
+[Joint implementation](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/distributions/multivariate/joint_categorical.py).
 
 ### Small HMM with exact state marginalization
 
@@ -112,16 +115,16 @@ For forecasting distinguish posterior-smoothed training states from a new path
 propagated from the final state. Marginal likelihood contributions are whole
 sequences, not iid time-point terms for naive LOO.
 
-[HMM implementation](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/model/marginal/distributions/discrete_markov_chain.py),
-[public transformation restrictions](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/model/marginal/marginalize.py),
-[release examples/tests](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/tests/model/marginal/test_discrete_markov_chain.py).
+[HMM implementation](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/model/marginal/distributions/discrete_markov_chain.py),
+[public transformation restrictions](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/model/marginal/marginalize.py),
+[release examples/tests](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/tests/model/marginal/test_discrete_markov_chain.py).
 
 ## Counts and signed differences
 
 | Family and selection | Parameters and boundaries | Important failure mode |
 |---|---|---|
 | `GeneralizedPoisson`: under- or overdispersed counts when its dispersion mechanism is defensible | `mu>0`; release logp checks `max(-1,-mu/4) <= lam <= 1`. `lam=0` is Poisson; negative/positive gives under-/overdispersion. Despite the argument name, expectation is `mu/(1-lam)`, variance `mu/(1-lam)**3`, not `mu`. | Use `lam<1` for finite moments and practical prediction. At `lam=1` these formulas diverge and the branching RNG can produce extremely large, slow draws. For `lam<0` support ends at the largest integer with `mu+lam*x>0`; moving that endpoint across data creates hard likelihood walls. Avoid equality `mu+lam*x=0`, where the log formula is delicate. |
-| `BetaNegativeBinomial`: heterogeneity in a negative-binomial success probability, not bounded trial counts | `alpha,beta,r>0`; nonnegative integer failures before `r` successes, with positive real `r` also admitted. Intended law is `p~Beta(alpha,beta)`, `x~NegativeBinomial(p=p,n=r)`. Mean `r*beta/(alpha-1)` requires `alpha>1`; variance requires `alpha>2`. | **Release predictive mismatch:** the custom logp describes that law, but its generator calls `NegativeBinomial.dist(p,r)` positionally, interpreted as `mu=p,alpha=r` in PyMC 6.3. Do not trust native prior/posterior predictive draws from this helper in 0.15.1. |
+| `BetaNegativeBinomial`: heterogeneity in a negative-binomial success probability, not bounded trial counts | `alpha,beta,r>0`. Nonnegative integer failures before `r` successes, with positive real `r` also admitted. The law is `p~Beta(alpha,beta)`, `x~NegativeBinomial(p=p,n=r)`. Mean `r*beta/(alpha-1)` needs `alpha>1`. Variance needs `alpha>2`. | The 0.16.0 generator uses explicit `p=p, n=r` arguments and matches the compound law. Infinite moments remain possible. |
 | `Skellam`: the signed difference of two conditionally independent Poisson counts | Integers on the entire real line; `mu1,mu2>=0`; mean `mu1-mu2`, variance `mu1+mu2`. Independence is substantive; unequal exposures belong in their respective rates. | The release logp uses `log(mu1)-log(mu2)` and an unscaled Bessel `iv`. Keep rates strictly positive for this implementation; permitted zero-rate boundaries can be undefined numerically. Extreme arguments can overflow/underflow. A correlated pair does not generally have this difference law. |
 
 If a regression predictor represents the generalized-Poisson mean `m`, pass
@@ -130,13 +133,16 @@ observed-count support. Core NegativeBinomial is usually simpler for ordinary
 overdispersion; a Beta mixture should represent additional probability
 heterogeneity, not merely add a parameter.
 
-The BetaNegativeBinomial mismatch is visible in the
-[release discrete source](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/distributions/discrete.py)
-and [PyMC 6.3 NegativeBinomial signature](https://github.com/pymc-devs/pymc/blob/v6.3.0/pymc/distributions/discrete.py).
-With `alpha=3, beta=2, r=2`, the intended mean is 2. A 50,000-draw check
-gave mean 0.60512 from the released helper versus 1.99514 from the explicit
-Beta/NegativeBinomial generator. This is not ordinary Monte Carlo variation.
-Use an explicit generative model when prediction is required:
+The 0.16.0 generator uses the same Beta/NegativeBinomial law as its log density.
+[PR 787](https://github.com/pymc-devs/pymc-extras/pull/787) fixes the positional-argument error in 0.15.1.
+For an independent check, `P(X=0)=B(alpha+r,beta)/B(alpha,beta)`.
+
+For `alpha>2`, variance is
+`r*beta*(r+alpha-1)*(alpha+beta-1)/((alpha-2)*(alpha-1)**2)`.
+With `alpha=4, beta=3, r=2`, the zero probability is `5/14`, the mean is `2`, and the variance is `10`.
+
+The native helper now supports predictive draws without a separate generator workaround.
+An explicit latent-probability model remains useful when those probabilities are inferential targets:
 
 ```python
 import numpy as np
@@ -151,9 +157,12 @@ with pm.Model(coords={"observation": np.arange(y_count.size)}) as beta_nb_model:
     )
 ```
 
-This adds latent probabilities but uses matching density and RNG. For a **new**
-observation draw a fresh Beta probability; reusing a fitted observation's
-posterior probability instead predicts that observation's latent propensity.
+This explicit model exposes each observation's probability.
+For a new observation, draw a fresh Beta probability.
+A fitted observation's posterior probability instead predicts that observation's latent propensity.
+
+The [0.16.0 discrete source](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/distributions/discrete.py)
+defines the corrected generator.
 The release discrete families implement logp and random generation, but no
 family-specific logcdf/icdf methods; do not assume censoring/truncation wrappers
 will work without checking required numerical capabilities.
@@ -243,17 +252,20 @@ rather than using a simple log transform when the upper wall can move with
 to keep **observations** in support. Internal transform classes are not public
 objects to import or subclass for ordinary modeling.
 
-GenExtreme implements RNG, logp and logcdf, but its release `logcdf` returns
-`-inf` whenever `1+xi*z<=0`. For negative `xi`, the mathematically correct CDF
-at/above the upper endpoint is one (`logcdf=0`); therefore do not rely on that
-release method for upper-tail censoring or bounds extending beyond the wall.
-Its density also treats endpoints as out of support. Check actual wrapper
-requirements rather than assuming all three families are interchangeable.
+GenExtreme implements RNG, logp and logcdf.
+In 0.16.0, negative `xi` gives `logcdf=0` at and above the finite upper endpoint `mu-sigma/xi`.
+Positive `xi` gives `logcdf=-inf` at and below the lower endpoint.
 
-[GEV source](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/distributions/continuous.py),
-[GPD source, recommendations and transform](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/distributions/pymc_genpareto.py),
-[ExtGPD source and transform](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/distributions/pymc_extgenpareto.py),
-[ExtGPD endpoint/tail formulas](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/distributions/pytensor_extgenpareto.py).
+At `xi=0`, `logcdf=-exp(-(x-mu)/sigma)`.
+[PR 788](https://github.com/pymc-devs/pymc-extras/pull/788) fixes the incorrect upper-endpoint result in 0.15.1.
+The density still excludes endpoints.
+
+Check each wrapper's numerical needs rather than assuming interchangeable interfaces.
+
+[GEV source, 0.16.0](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/distributions/continuous.py),
+[GPD source, recommendations and transform](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/distributions/pymc_genpareto.py),
+[ExtGPD source and transform](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/distributions/pymc_extgenpareto.py),
+[ExtGPD endpoint/tail formulas](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/distributions/pytensor_extgenpareto.py).
 
 ## Chi and Maxwell: radial magnitudes
 
@@ -273,7 +285,7 @@ behavior rather than assuming every positive custom distribution chooses it.
 Exact zero has no probability atom; do not use these laws as zero-inflated
 models. Do not assume a CDF implementation from the symbolic density alone.
 
-[Construction and API source](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/distributions/continuous.py).
+[Construction and API source](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/distributions/continuous.py).
 
 ## Histogram compression: when it changes the likelihood
 
@@ -327,7 +339,7 @@ observation law. Generate new counts from a separate Poisson RV with the fitted
 rate. There is no automatic row-level log-likelihood group for LOO; reconstruct
 log likelihood at the intended observational unit from original data.
 
-[Histogram implementation](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/distributions/histogram_utils.py).
+[Histogram implementation](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/distributions/histogram_utils.py).
 
 ## PartialOrder: strict inequalities on selected entries
 
@@ -365,14 +377,14 @@ normalizing constant, especially if that constant depends on unknown
 parameters or a model-comparison calculation. A max over multiple parents
 introduces nondifferentiable ties; diagnose geometry, not just initial order.
 
-[Transform implementation and examples](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/distributions/transforms/partial_order.py).
+[Transform implementation and examples](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/distributions/transforms/partial_order.py).
 
 ## R2D2M2CP: follow the shrinkage workflow
 
 Use [prior elicitation: shrinkage](../../prior-elicitation/references/shrinkage.md)
 for variance-budget interpretation, predictor scaling, regularization and
 prior-predictive checks. Consult the
-[0.15.1 helper source](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/distributions/multivariate/r2d2m2cp.py)
+[0.16.0 helper source](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/distributions/multivariate/r2d2m2cp.py)
 for the consuming environment. `R2D2M2CP` is a prior-construction helper, not an
 observational likelihood. It returns named fields **`eps`** (residual SD) and
 **`beta`** (coefficients); `output_sigma` is total outcome SD, while positive

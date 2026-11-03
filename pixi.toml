@@ -5,14 +5,14 @@ platforms = [{ platform = "linux-64", glibc = "2.35" }]
 
 [tasks]
 test = "pytest"
-check = "ruff check tests"
+check = "ruff check tests skills"
 format = "ruff format tests"
 
 [dependencies]
 python = ">=3.13,<3.15"
 
 [pypi-dependencies]
-pytensor = ">=3.3,<3.4"
+pytensor = ">=3.3.6,<3.4"
 numpy = ">=2,<3"
 scipy = ">=1,<2"
 numba = ">=0.67,<0.68"
@@ -29,7 +29,7 @@ torch = { version = ">=2.14,<3", index = "https://download.pytorch.org/whl/cpu" 
 mlx = { version = ">=0.32,<0.33", extras = ["cpu"] }
 
 [feature.extras.pypi-dependencies]
-pymc-extras = { version = ">=0.15.1,<0.16", extras = ["histogram"] }
+pymc-extras = { version = ">=0.16,<0.17", extras = ["histogram"] }
 h5netcdf = { version = ">=1.8.1,<2", extras = ["h5py"] }
 
 [environments]

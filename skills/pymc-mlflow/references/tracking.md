@@ -1,12 +1,15 @@
 # Manual PyMC tracking
 
-Generic tracking needs no PyMC-Marketing dependency. This example targets
+Generic tracking needs no PyMC-Marketing dependency. This example uses the verified stack:
 [PyMC 6.3.2](https://github.com/pymc-devs/pymc/releases/tag/v6.3.2),
 [ArviZ 1.3.0](https://github.com/arviz-devs/arviz/releases/tag/v1.3.0) and
 [MLflow 3.16.1](https://github.com/mlflow/mlflow/releases/tag/v3.16.1).
 Install those packages plus `h5netcdf` and `h5py` in an isolated environment.
 Native PyMC NUTS needs no optional sampler. This is tracking infrastructure,
 not native model restoration, registry publication or a serving endpoint.
+
+This example does not establish compatibility with newer PyMC releases.
+PyMC-Marketing's dependency pins do not govern generic MLflow tracking.
 
 ## Complete local round trip
 

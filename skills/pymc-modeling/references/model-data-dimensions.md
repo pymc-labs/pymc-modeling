@@ -80,6 +80,14 @@ infer existing xtensor names; explicit dims can reorder them. Distribution
 `core_dims` expresses support semantics, not just batch labels. Ordinary and named
 constructors need not accept identical arguments. Keep the experimental warning.
 
+PyMC 6.4.0 adds named `Pareto`, `Gumbel`, `Logistic`, `VonMises` and `Triangular` families.
+It also adds named `Bernoulli`, `BetaBinomial`, `Binomial`, `Geometric` and `HyperGeometric` families.
+These constructors retain xtensor broadcasting and named-dimension rules, not positional tensor semantics.
+
+Named `Pareto` currently needs constant `m` for its default interval transform.
+Named `VonMises` uses the named `CircularTransform`.
+Check each constructor's parameter interface instead of assuming complete parity with ordinary PyMC distributions.
+
 Xtensors expose symbolic `dims`, `sizes`, `shape`, `ndim`, `dtype`, `broadcastable`,
 `T`, `real` and `imag`; `.values` drops named-axis safeguards. In
 [PyTensor 3.3.0](https://github.com/pymc-devs/pytensor/blob/aa1bc7772eb11ed8def2814374aeb5da03da590c/pytensor/xtensor/type.py),
@@ -98,3 +106,9 @@ Sources: [model API](https://www.pymc.io/projects/docs/en/stable/api/model/core.
 [model implementation](https://github.com/pymc-devs/pymc/blob/v6.3.1/pymc/model/core.py),
 [dimensionality](https://www.pymc.io/projects/docs/en/stable/learn/core_notebooks/dimensionality.html),
 [experimental dims](https://www.pymc.io/projects/docs/en/stable/learn/core_notebooks/dims_module.html).
+
+Release sources:
+
+- [Named scalar families in 6.4.0](https://github.com/pymc-devs/pymc/blob/v6.4.0/pymc/dims/distributions/scalar.py).
+- [Named Pareto PR8422](https://github.com/pymc-devs/pymc/pull/8422).
+- [Named family additions PR8487](https://github.com/pymc-devs/pymc/pull/8487).

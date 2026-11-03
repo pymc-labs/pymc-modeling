@@ -29,6 +29,8 @@ installation. Inspect installed versions and signatures before enabling
 integration. Do not downgrade or replace a working modeling environment just to
 use autologging. Direct MLflow tracking does not require PyMC-Marketing.
 
+The [generic tracking example](references/tracking.md) records its verified stack and compatibility limits.
+
 ## Preserve the fit before interpreting it
 
 1. **Identify the run.** Set a tracking URI and project experiment. Log source/data

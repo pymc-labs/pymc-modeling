@@ -59,8 +59,8 @@ simulation uncertainty beyond the conditional probabilities.
 
 ## Choose supported elimination with pymc-extras
 
-This section targets **pymc-extras 0.15.1** and its compatible PyMC 6.3/PyTensor 3.3
-environment; see [extras selection and installation](pymc-extras.md).
+Use the [canonical compatibility guide](pymc-extras.md#resolve-compatibility-before-choosing-an-api) for the checked environment and dependency bounds.
+
 `pmx.marginalize(model, rvs_to_marginalize=(), *, laplace_approx=None,
 minimizer_kwargs=None)` clones a nonempty selection into a new model. Ordinary
 selections request **exact** supported rewrites; `laplace_approx={name_or_rv: Q}`
@@ -68,7 +68,7 @@ explicitly requests **approximate** integration. Laplace keys need not also appe
 in the exact selection. Unsupported exact cases raise rather than silently become
 Laplace approximations.
 
-| Strategy in 0.15.1 | Supported scope |
+| Strategy in 0.16.0 | Supported scope |
 |---|---|
 | Finite enumeration | Bernoulli, Categorical, DiscreteUniform; supported observationwise/batched graphs. Domains can remain symbolic. |
 | Markov-chain rewrite | `pmx.DiscreteMarkovChain` with its supported transition/emission graph; not arbitrary HMM recognition. |
@@ -235,14 +235,34 @@ conditional skewness/multiple modes, precision/curvature and comparisons with
 the original joint model or numerical integration. The experimental INLA helper
 wraps this operation and `pm.sample`; see [INLA selection](approximate-inference.md#inla-select-a-latent-gaussian-structure-not-an-arbitrary-model).
 
-**Recovery limit:** 0.15.1 has no conditional/recovery implementation for
-Laplace-eliminated variables. `recover(..., var_names=["field"])` and
-`conditional(..., ["field"])` raise `NotImplementedError`; INLA's
-`return_latent_posteriors=True` also raises. `unmarginalize` can restore the
-generative model but cannot manufacture posterior field draws. If those are
-required, fit the original joint model (or implement and validate a separate
-conditional inference calculation), rather than call prior draws recovered
-posteriors.
+Recovery uses a Gaussian approximation in 0.16.0.
+`conditional` and `recover` use the conditional mode and precision
+`Q - Hessian(log_likelihood)`, with curvature evaluated at that mode.
+Each calculation conditions on the retained parameters and dependent values.
+
+Nested recovery preserves these dependencies.
+For a Gaussian conditional posterior, this approximation is exact apart from numerical optimization and arithmetic error.
+Nonlinear likelihoods generally give approximate conditional draws, not exact posterior draws.
+
+More recovery draws cannot remove this approximation error.
+Compare conditional moments and predictions with the original joint model on a small case.
+Version note: 0.15.1 lacks this recovery handler.
+
+`unmarginalize` restores the generative graph, not posterior draws.
+
+```python
+from pymc_extras.marginal import conditional, recover
+
+field_draws = recover(
+    field_idata, model=field_marginal, var_names=["field"],
+    extend_inferencedata=False, random_seed=48,
+)
+assert field_draws["field"].shape == (2, 500, 2)
+assert np.isfinite(field_draws["field"].values).all()
+field_conditional = conditional(field_marginal, ["field"])
+field_logp = field_conditional.compile_logp(vars=[field_conditional["field"]])
+assert np.isfinite(field_logp({"theta": 0.0, "field": np.zeros(2)}))
+```
 
 ### Likelihood and prediction after elimination
 
@@ -258,9 +278,10 @@ posteriors.
   factorization or refit.
 - Conditional likelihood on recovered training latents and marginal likelihood
   integrating fresh latents answer different predictive questions. State whether
-  prediction concerns the same fitted units or new units/groups. For same-unit
-  response replication, recover exact latents and use the original model as
-  above. For new units, build the corresponding prediction model and intentionally
+  prediction concerns the same fitted units or new units/groups.
+  For same-unit response replication, recover eliminated latents and use the original model.
+  Laplace recovery adds conditional approximation error.
+  For new units, build the corresponding prediction model and intentionally
   draw new latents conditional on retained posterior hyperparameters.
 - The marginal model retains a generative graph that can draw eliminated latents
   from their prior conditional on retained parameters during forward prediction.
@@ -289,12 +310,17 @@ machine epsilon despite inconsistent docstrings. Model exact, rounded and censor
 zeros differently. Mixed atom/continuous free variables are not ordinary NUTS
 parameters; an observed hurdle likelihood for continuous parameters is different.
 
-Sources: [PyMC mixture implementation](https://github.com/pymc-devs/pymc/blob/v6.3.1/pymc/distributions/mixture.py),
+Sources: [PyMC mixture implementation, 6.4.0](https://github.com/pymc-devs/pymc/blob/v6.4.0/pymc/distributions/mixture.py),
+[PyMC 6.3.1 continuous-hurdle caution](https://github.com/pymc-devs/pymc/blob/v6.3.1/pymc/distributions/mixture.py),
 [extras marginalization](https://www.pymc.io/projects/extras/en/stable/api/marginalization.html),
-[release marginalization source](https://github.com/pymc-devs/pymc-extras/tree/v0.15.1/pymc_extras/model/marginal),
-[exact Normal rewrite](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/model/marginal/distributions/normal.py),
-[Laplace rewrite](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/model/marginal/distributions/laplace.py),
-[conditional recovery](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/model/marginal/conditional.py),
-[release conjugacy tests](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/tests/model/marginal/test_normal.py),
-[PyMC prediction source](https://github.com/pymc-devs/pymc/blob/v6.3.1/pymc/sampling/forward.py),
-[extras dependency metadata](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pyproject.toml).
+[release marginalization source](https://github.com/pymc-devs/pymc-extras/tree/v0.16.0/pymc_extras/model/marginal),
+[exact Normal rewrite](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/model/marginal/distributions/normal.py),
+[Laplace rewrite and recovery, 0.16.0](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/model/marginal/distributions/laplace.py),
+[conditional recovery](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/model/marginal/conditional.py),
+[release conjugacy tests](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/tests/model/marginal/test_normal.py),
+[PyMC prediction source](https://github.com/pymc-devs/pymc/blob/v6.4.0/pymc/sampling/forward.py),
+[extras dependency metadata, 0.16.0](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pyproject.toml).
+
+See also [Laplace recovery change, PR 790](https://github.com/pymc-devs/pymc-extras/pull/790).
+
+See [Laplace conditional regression cases, 0.16.0](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/tests/model/marginal/test_laplace.py).

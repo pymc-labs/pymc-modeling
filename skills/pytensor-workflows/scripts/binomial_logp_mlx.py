@@ -9,13 +9,14 @@ from math import e
 
 import mlx.core as mx
 from pytensor.link.mlx.dispatch import mlx_funcify
-from pytensor.scalar.math import GammaLn
+from pytensor.scalar import float64
+from pytensor.scalar.math import gammaln
 
 from binomial_logp_op import BinomialLogpOp
 
-
 _COUNT_DTYPES = (mx.int8, mx.int16, mx.int32, mx.int64, mx.uint8, mx.uint16, mx.uint32, mx.uint64)
-_loggamma = mlx_funcify(GammaLn())
+_loggamma_node = gammaln.make_node(float64())
+_loggamma = mlx_funcify(_loggamma_node.op, node=_loggamma_node)
 
 
 def _check_inputs(eta, trials, observed):

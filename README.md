@@ -77,12 +77,12 @@ your agent's skill mechanism. For example:
 - “Find the shape or gradient error in this PyTensor graph.”
 - “Use pymc-extras to marginalize latent states or fit and forecast a structural time series.”
 
-The guidance targets PyMC 6+, PyTensor 3+ and ArviZ's DataTree API. Code examples
-use the consuming project's compatible Python environment. Optional packages
-such as PreliZ, pymc-extras, BART, MLflow, PyMC-Marketing and alternative backends
-are needed only for the workflows that use them. Consult version-matched
-documentation; do not replace a working environment just to install these
-instructions.
+Current modeling guidance uses the [checked stack](skills/pymc-modeling/references/pymc-extras.md#resolve-compatibility-before-choosing-an-api) and ArviZ's DataTree API.
+References retain explicitly named older-release cautions where they help existing projects. Check each reference's version scope.
+
+Use the consuming project's compatible Python environment.
+Optional packages support only the workflows that need them.
+Do not replace a working environment just to install these instructions.
 
 The [MLflow skill](skills/pymc-mlflow/SKILL.md) supports ordinary PyMC tracking
 without PyMC-Marketing. Its optional integration examples target PyMC-Marketing
@@ -90,6 +90,8 @@ without PyMC-Marketing. Its optional integration examples target PyMC-Marketing
 separate MLflow installation. Saving posterior artifacts, restoring native
 models and registering MMM prediction wrappers are distinct from deploying a
 service; the references make those boundaries explicit.
+
+The generic [MLflow tracking example](skills/pymc-mlflow/references/tracking.md) records its verified stack and compatibility limits.
 
 PyMC-Marketing 1.2.0's built-in MMM pyfunc prediction route forwards an unsupported
 `original_scale` argument. The [MMM reference](skills/pymc-mlflow/references/mmm-persistence.md)
@@ -99,14 +101,18 @@ restoration/prediction route; wrapper registration is not a serving guarantee.
 The [pymc-extras guide](skills/pymc-modeling/references/pymc-extras.md) routes to
 inference, exact/approximate marginalization, specialized distributions,
 state-space forecasting, prior factories and model-building tools. Its examples
-target extras 0.15.1 and identify unsupported operations and release-specific
-limits; inspect installed APIs when adapting them to another release.
+distinguish supported recovery from approximation error.
+Inspect installed APIs when adapting them to another release.
 
 ## Maintainer checks
 
 These checks exercise the educational custom Op and its CPU backends, not the
 full set of modeling examples or accelerator hardware. They do not install
 anything into a consuming project's environment.
+
+Use Pixi 0.83.0 or newer for the platform-specific glibc declaration.
+
+See the [checked stack and dependency bounds](skills/pymc-modeling/references/pymc-extras.md#resolve-compatibility-before-choosing-an-api) for the extras environment and the shared PyTensor version.
 
 The Linux test environments require glibc 2.35 or newer. From this repository:
 
@@ -138,7 +144,8 @@ to analytic references, and check support boundaries and input errors.
 
 The GitHub Actions workflow runs the four custom-Op test environments with the lockfile,
 not the optional extras examples.
-Use `pixi run check` and `pixi run format` for regression-test code quality.
+Use `pixi run --locked check` to lint tests and skill scripts.
+Use `pixi run --locked format` for regression-test formatting.
 These maintainer tools are not needed to install or use the skills.
 
 The MLflow references contain standalone Python examples for manual tracking,

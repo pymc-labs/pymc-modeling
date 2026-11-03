@@ -11,7 +11,6 @@ from pytensor.link.pytorch.dispatch import pytorch_funcify
 
 from binomial_logp_op import BinomialLogpOp
 
-
 _COUNT_DTYPES = (torch.int8, torch.int16, torch.int32, torch.int64, torch.uint8, torch.uint16, torch.uint32)
 
 

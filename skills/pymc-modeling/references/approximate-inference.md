@@ -9,28 +9,34 @@
 | Grouped VI | `pm.Group`, `pm.variational.Approximation`, `pm.variational.KLqp`: independent groups lose cross-group dependence even if each is full rank. |
 | SVGD | Empirical particles, kernel/temperature and finite-particle sensitivity; not independent MCMC samples. |
 | ASVGD, ImplicitGradient | Experimental generator/Stein methods; PyMC 6.3.1 source discourages routine use. Keep warnings visible. |
-| MAP | Core `pm.find_MAP` returns a point; extras `pmx.find_MAP` returns a DataTree with optimizer diagnostics. Neither supplies posterior uncertainty. |
+| MAP | Core `pm.find_MAP` can return a DataTree with one optimized point. Extras `pmx.find_MAP` has a separate DataTree interface. Neither supplies posterior samples. |
 | Laplace | `pmx.fit(method="laplace", model=model, ...)`: local mode/Hessian approximation; coordinates and curvature accuracy matter. |
 | DADVI | `pmx.fit(method="dadvi", model=model, ...)`: deterministic finite-sample mean-field objective, not exact inference. |
 | Pathfinder | `pmx.fit(method="pathfinder", model=model, ...)`: quasi-Newton Gaussian paths plus selection/reweighting. |
 | INLA | `fit_INLA(x, Q, model=model, ...)`: experimental latent-Gaussian elimination followed by MCMC over remaining variables, not a generic Laplace alias. |
 
-These extras calls target **pymc-extras 0.15.1**, which requires Python >=3.12,
-PyMC >=6.3,<6.4, PyTensor >=3.3,<3.4, ArviZ >=1.2,<2 and PreliZ >=0.27,<0.29.
-Do not override dependency bounds. See [extras selection and installation](pymc-extras.md).
+Use the [checked stack and dependency bounds](pymc-extras.md#resolve-compatibility-before-choosing-an-api) before these extras calls.
+Do not override dependency bounds.
+
 Core `pm.fit` accepts advi/fullrank_advi/svgd/asvgd or an Inference object, not
 extras methods. The separate `pmx.fit` dispatcher accepts `"laplace"`,
 `"pathfinder"`, `"dadvi"` and case-sensitive `"INLA"`; its kwargs go to the
 selected function. Direct imports are available from `pymc_extras.inference`;
 `fit_dadvi` and `fit_INLA` are not exported at the package root.
 
-PyTensor-backed MAP, Laplace, DADVI and multi-path Pathfinder do not require
-BlackJAX. `gradient_backend="jax"` on MAP/Laplace/DADVI needs a compatible
+PyTensor-backed MAP, Laplace, DADVI and multi-path Pathfinder do not need
+BlackJAX. Extras `gradient_backend="jax"` on MAP/Laplace/DADVI needs a compatible
 JAX/JAXlib installation and JAX-translatable model. The separate
-`fit_blackjax_pathfinder` needs BlackJAX and its compatible JAX stack. The release
-lists `blackjax>=0.12,<2` in its `dev` extra, not its `complete` extra.
+`fit_blackjax_pathfinder` needs BlackJAX and its compatible JAX stack.
+The release lists BlackJAX in its `dev` extra, not its `complete` extra.
 CPU execution does not establish accelerator compatibility. Full-rank DADVI and
 arbitrary flow/NumPyro integrations are not supplied by these interfaces.
+
+Core `pm.fit` also accepts `backend="jax"`. Install a compatible JAX stack and check compilation for the chosen model and method.
+This backend does not change the approximation family or establish its accuracy.
+
+Extras 0.16.0 fixes `AutoMultivariateNormal` Cholesky construction with constant indices for JAX compilation.
+This full-rank ADVI guide is separate from core `FullRankADVI`. It does not add full-rank DADVI.
 
 ```python
 with model:
@@ -43,6 +49,40 @@ approximate_draws.to_netcdf("approximation.nc")
 Save fitted parameters and loss history before downstream drawing/plotting when
 recovery matters. Parameter arrays alone are not a resumable optimizer checkpoint:
 accumulators, ordering, transforms and RNG state can matter.
+
+## Core MAP in PyMC 6.4.0
+
+Use `initvals`, `random_seed` and `maxiter` instead of `start`, `seed` and `maxeval`.
+The old names emit `FutureWarning`. A callable `method` is no longer accepted.
+Only `method` can be positional, except the deprecated positional start dictionary.
+
+Use `backend="jax"` for core MAP, not the extras `gradient_backend` argument.
+PyTensor computes derivatives on each core backend. JAX needs compatible packages and a model that supports JAX compilation.
+
+Set `jitter=False` to retain the supplied start, or `jitter=True` for a random perturbation of optimized variables.
+Omitted `jitter` currently means no jitter and emits `FutureWarning`. A future release will use jitter by default.
+
+The default dictionary return also emits `FutureWarning`. Set `return_inferencedata=True` for a DataTree.
+Its `posterior` group contains one optimized point, not posterior samples.
+
+```python
+with model:
+    core_map = pm.find_MAP(
+        method="L-BFGS-B", random_seed=42, maxiter=1000,
+        jitter=False, return_inferencedata=True, compute_hessian=True,
+        progressbar=False,
+    )
+print(core_map["posterior"])
+print(core_map["fit"].to_dataset()[["mean_vector", "covariance_matrix"]])
+print(core_map["optimizer_result"].to_dataset()[["success", "message"]])
+```
+
+The `fit` group contains `mean_vector` and, with `compute_hessian=True`, `covariance_matrix`.
+The `optimizer_result` group stores optimizer diagnostics.
+Optional curvature uses the inverse Hessian of negative `model.logp(jacobian=False)` in optimized value coordinates.
+
+This local curvature is not posterior sampling and need not describe posterior uncertainty well.
+Dense curvature needs quadratic storage. Inspect optimizer success, gradients and sensitivity to initial values.
 
 ## Concrete extras fits and their outputs
 
@@ -107,14 +147,21 @@ for name, result in [("laplace", laplace), ("dadvi", dadvi),
     result.to_netcdf(f"{name}.nc")
 ```
 
-Extras `find_MAP(method=..., *, model=..., ...)` is a different interface from
-core `pm.find_MAP`: in 0.15.1 it returns a **DataTree**, not a point dictionary or
-`(point, OptimizeResult)` tuple, despite a stale return annotation in the source.
+Extras `find_MAP(method=..., *, model=..., ...)` differs from core `pm.find_MAP`.
+In 0.16.0, it returns a DataTree, not a point dictionary or `(point, OptimizeResult)` tuple.
+
+The [released implementation](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/inference/laplace_approx/find_map.py) returns that object despite its stale dictionary/tuple return annotation.
+The [output helpers](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/inference/laplace_approx/idata.py) construct the DataTree and its groups.
+
 It supports partial `initvals`, explicit `jitter_rvs`, gradient/Hessian/Hessian-vector
 controls and SciPy optimizer options as kwargs. Inspect `optimizer_result` success,
 message, objective, gradient when available and sensitivity to independent starts.
+
 No automatic restart scheme establishes global optimality. `compute_hessian=True`
 also requests curvature in `fit`; dense curvature costs quadratic storage.
+
+Extras `find_MAP` retains the same interface in 0.15.1 and 0.16.0.
+See the [0.15.1 source](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/inference/laplace_approx/find_map.py) and [release comparison](https://github.com/pymc-devs/pymc-extras/compare/v0.15.1...v0.16.0).
 
 Laplace uses `optimize_method`, `draws` and nested `optimizer_kwargs`; model is
 keyword-only, so `fit_laplace(model)` misbinds it. Supplying `chains` raises.
@@ -144,14 +191,18 @@ posterior samples merely because they occupy a `posterior` group.
 `fit_blackjax_pathfinder(model=model, num_draws=..., random_seed=...)` is a
 separate **single-path** API, without multi-path aggregation or jitter retries.
 
+Extras 0.16.0 supports float32 Pathfinder models through explicit casts at model evaluation and posterior transformation boundaries.
+Its BFGS calculations still use float64. This change does not establish float32 accuracy for a specific model.
+
 ## INLA: select a latent-Gaussian structure, not an arbitrary model
 
 The intended structure is hyperparameters `theta`, a Gaussian latent vector `x`
 with known-form positive-definite prior precision `Q(theta)`, and observations
 linked to a linear predictor `A @ x`. A non-Gaussian response likelihood is
 possible; the Gaussian requirement is on the field, not on the response.
-In 0.15.1, `fit_INLA` constructs a Laplace-marginalized model then calls
-`pm.sample` for the remaining variables. It does **not** implement generic
+
+In 0.16.0, `fit_INLA` constructs a model with Laplace marginalization, then calls
+`pm.sample` for remaining variables. It does **not** implement generic
 deterministic integration over hyperparameters. Its MCMC diagnostics assess the
 approximate marginal target, not the eliminated-field approximation.
 
@@ -168,11 +219,12 @@ with pm.Model() as latent_model:
 
 inla = pmx.fit(
     method="INLA", model=latent_model, x=x, Q=Q,
-    return_latent_posteriors=False,
+    return_latent_posteriors=True,
     minimizer_kwargs={"method": "L-BFGS-B",
                       "optimizer_kwargs": {"tol": 1e-8}},
     draws=500, tune=500, chains=2, cores=1, random_seed=45,
 )
+print(inla["posterior"]["x"])
 inla.to_netcdf("inla.nc")
 ```
 
@@ -183,11 +235,14 @@ precision, not the posterior precision or a convenient scalar stand-in.
 Check conditional modes, curvature, inner-optimization sensitivity and comparison
 with the original joint model or numerical integration. Multimodal, weakly
 identified, skewed or boundary-concentrated latent conditionals need special caution.
-`minimizer_seed` is currently unused (initialization is deterministic);
-`return_latent_posteriors=True` raises `NotImplementedError`.
-Laplace field recovery via `recover`/`conditional` is also unsupported; see
-[marginalization and prediction](mixtures.md#laplace-elimination-is-approximate).
-Do not select INLA if those missing outputs are required.
+
+`minimizer_seed` is currently unused (initialization is deterministic).
+`return_latent_posteriors=True` now adds latent field draws to `posterior` for each hyperparameter draw.
+Recovery uses a Gaussian conditional centered at its mode, with curvature at that mode.
+It is exact for Gaussian conditionals apart from numerical error, but generally approximate otherwise.
+
+Laplace marginalization also supports `recover` and `conditional`.
+See [marginalization and prediction](mixtures.md#laplace-elimination-is-approximate) for their contracts.
 
 ## Declare intended accuracy
 
@@ -254,7 +309,7 @@ of the Hessian, at the exact mode with exact curvature. Approximate inverse BFGS
 curvature can still be inaccurate. Align returned `mean_vector` and
 `covariance_matrix` by dimension labels, not assumed variable order.
 
-In extras 0.15.1 the MAP helper evaluates `model.logp(jacobian=False)` in value
+In extras 0.16.0 the MAP helper evaluates `model.logp(jacobian=False)` in value
 coordinates before transforming draws back. For nonlinear transformations this
 is not the same local quadratic as the Jacobian-adjusted unconstrained density,
 nor an original-space Gaussian moment calculation. DADVI and default Pathfinder
@@ -299,15 +354,23 @@ nor accuracy.
   Clipping does not fix an unstable model or justify hiding exploding gradients.
 
 Sources: [core VI](https://www.pymc.io/projects/docs/en/stable/api/vi.html),
-[OPVI](https://github.com/pymc-devs/pymc/blob/v6.3.1/pymc/variational/opvi.py),
-[core inference](https://github.com/pymc-devs/pymc/blob/v6.3.1/pymc/variational/inference.py),
-[extras inference](https://www.pymc.io/projects/extras/en/stable/api/inference.html),
-[release dispatcher](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/inference/fit.py),
-[MAP and Laplace source](https://github.com/pymc-devs/pymc-extras/tree/v0.15.1/pymc_extras/inference/laplace_approx),
-[DADVI source](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/inference/dadvi/dadvi.py),
-[Pathfinder source and output schema](https://github.com/pymc-devs/pymc-extras/tree/v0.15.1/pymc_extras/inference/pathfinder),
-[INLA source](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pymc_extras/inference/INLA/inla.py),
-[release dependency metadata](https://github.com/pymc-devs/pymc-extras/blob/v0.15.1/pyproject.toml),
+[OPVI](https://github.com/pymc-devs/pymc/blob/v6.3.1/pymc/variational/opvi.py).
+
+- [Core inference in 6.4.0](https://github.com/pymc-devs/pymc/blob/v6.4.0/pymc/variational/inference.py).
+- [Core MAP source](https://github.com/pymc-devs/pymc/blob/v6.4.0/pymc/tuning/starting.py).
+- [MAP modernization PR8429](https://github.com/pymc-devs/pymc/pull/8429).
+- [Extras inference](https://www.pymc.io/projects/extras/en/stable/api/inference.html).
+- [Release dispatcher](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/inference/fit.py).
+- [MAP and Laplace source](https://github.com/pymc-devs/pymc-extras/tree/v0.16.0/pymc_extras/inference/laplace_approx).
+- [DADVI source](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/inference/dadvi/dadvi.py).
+- [Pathfinder source and output schema](https://github.com/pymc-devs/pymc-extras/tree/v0.16.0/pymc_extras/inference/pathfinder).
+- [Float32 Pathfinder PR813](https://github.com/pymc-devs/pymc-extras/pull/813).
+- [Full-rank guide source](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/inference/advi/autoguide.py).
+- [JAX guide correction PR795](https://github.com/pymc-devs/pymc-extras/pull/795).
+- [INLA source](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pymc_extras/inference/INLA/inla.py).
+- [Laplace recovery PR790](https://github.com/pymc-devs/pymc-extras/pull/790).
+- [Release dependency metadata](https://github.com/pymc-devs/pymc-extras/blob/v0.16.0/pyproject.toml).
+
 [ADVI](https://jmlr.org/papers/v18/16-107.html),
 [DADVI](https://www.jmlr.org/papers/v25/23-1015.html),
 [Pathfinder](https://jmlr.org/papers/v23/21-0889.html).
